@@ -5,10 +5,3 @@ __pycache__/
 *.pyc
 frontend/node_modules/
 frontend/build/
-*.pkl
-.env
-app.log
-__pycache__/
-*.pyc
-frontend/node_modules/
-frontend/build/
