@@ -1,0 +1,157 @@
+2026-04-09 04:45:52,857 - main - INFO - Shutting down...
+2026-04-09 04:47:15,298 - main - INFO - Login attempt: admin
+2026-04-09 04:47:15,299 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2026-04-09 04:47:15,306 - main - ERROR - Login error for admin: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-04-09 04:47:40,985 - main - INFO - Shutting down...
+2026-04-09 04:48:31,890 - main - INFO - Model loaded successfully
+2026-04-09 04:48:34,999 - main - INFO - Model loaded successfully
+2026-04-09 04:48:38,171 - main - INFO - Model loaded successfully
+2026-04-09 04:48:55,523 - main - INFO - Login attempt: admin
+2026-04-09 04:48:55,524 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2026-04-09 04:48:55,529 - main - ERROR - Login error for admin: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-04-09 04:49:06,877 - main - INFO - Shutting down...
+2026-04-09 04:49:06,984 - main - INFO - Shutting down...
+2026-04-09 04:49:15,703 - main - INFO - Model loaded successfully
+2026-04-09 04:49:16,959 - main - INFO - Model loaded successfully
+2026-04-09 04:49:43,245 - main - INFO - Login attempt: admin
+2026-04-09 04:49:43,246 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2026-04-09 04:49:43,252 - main - ERROR - Login error for admin: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-04-09 04:50:02,656 - main - INFO - Shutting down...
+2026-04-09 04:50:10,962 - main - INFO - Model loaded successfully
+2026-04-09 04:50:11,924 - main - INFO - Model loaded successfully
+2026-04-09 04:50:30,987 - main - INFO - Login attempt: admin
+2026-04-09 04:50:30,999 - main - INFO - Successful login: admin
+2026-04-09 04:50:46,553 - main - INFO - Login attempt: admin
+2026-04-09 04:50:46,554 - main - INFO - Successful login: admin
+2026-04-09 04:51:01,108 - main - INFO - Shutting down...
+2026-04-09 04:51:01,108 - main - INFO - Shutting down...
+2026-04-09 04:51:08,781 - main - INFO - Model loaded successfully
+2026-04-09 04:51:08,782 - main - INFO - Model loaded successfully
+2026-04-09 04:51:09,648 - main - INFO - Shutting down...
+2026-04-09 04:51:15,949 - main - INFO - Model loaded successfully
+2026-04-09 04:51:15,949 - main - INFO - Model loaded successfully
+2026-04-09 04:51:22,405 - main - INFO - Model loaded successfully
+2026-04-09 04:51:22,405 - main - INFO - Model loaded successfully
+2026-04-09 04:51:22,406 - main - INFO - Model loaded successfully
+2026-04-09 04:51:37,519 - main - INFO - Login attempt: admin
+2026-04-09 04:51:37,522 - main - INFO - Successful login: admin
+2026-04-09 04:51:37,525 - main - INFO - Prediction request from user: admin
+2026-04-09 04:51:37,659 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-09 04:55:15,845 - main - INFO - Login attempt: admin
+2026-04-09 04:55:15,846 - main - INFO - Successful login: admin
+2026-04-09 04:55:15,848 - main - INFO - Prediction request from user: admin
+2026-04-09 04:55:15,971 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-09 04:55:35,174 - main - INFO - Login attempt: admin
+2026-04-09 04:55:35,174 - main - INFO - Successful login: admin
+2026-04-09 04:55:35,178 - main - INFO - Prediction request from user: admin
+2026-04-09 04:55:35,305 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-09 04:55:35,311 - main - INFO - Login attempt: invalid
+2026-04-09 04:55:35,312 - main - WARNING - Failed login attempt: invalid
+2026-04-09 05:01:07,144 - main - INFO - Shutting down...
+2026-04-09 05:01:07,146 - main - INFO - Shutting down...
+2026-04-09 05:01:09,426 - main - INFO - Login attempt: admin
+2026-04-09 05:01:09,454 - main - INFO - Successful login: admin
+2026-04-09 05:01:09,477 - main - INFO - Prediction request from user: admin
+2026-04-09 05:01:09,872 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-09 05:01:19,326 - main - INFO - Model loaded successfully
+2026-04-09 05:01:55,074 - main - INFO - Shutting down...
+2026-04-09 05:01:57,833 - main - INFO - Login attempt: admin
+2026-04-09 05:01:57,833 - main - INFO - Successful login: admin
+2026-04-09 05:01:57,838 - main - INFO - Prediction request from user: admin
+2026-04-09 05:01:57,971 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-09 05:02:02,207 - main - INFO - Model loaded successfully
+2026-04-09 05:02:09,215 - main - INFO - Model loaded successfully
+2026-04-09 05:02:09,217 - main - INFO - Model loaded successfully
+2026-04-09 05:05:29,154 - main - INFO - Shutting down...
+2026-04-09 05:05:29,154 - main - INFO - Shutting down...
+2026-04-09 05:05:38,268 - main - INFO - Model loaded successfully
+2026-04-09 05:05:44,539 - main - INFO - Model loaded successfully
+2026-04-09 05:05:44,540 - main - INFO - Model loaded successfully
+2026-04-09 05:11:01,401 - main - INFO - Shutting down...
+2026-04-09 05:11:01,511 - main - INFO - Shutting down...
+2026-04-09 05:11:09,476 - main - INFO - Model loaded successfully
+2026-04-09 05:11:09,476 - main - INFO - Model loaded successfully
+2026-04-09 05:11:16,850 - main - INFO - Model loaded successfully
+2026-04-09 05:11:16,850 - main - INFO - Model loaded successfully
+2026-04-09 05:11:22,515 - main - INFO - Shutting down...
+2026-04-09 05:11:29,116 - main - INFO - Model loaded successfully
+2026-04-09 05:14:37,964 - main - INFO - Model loaded successfully
+2026-04-09 05:23:49,915 - main - INFO - Shutting down...
+2026-04-09 05:23:50,337 - main - INFO - Shutting down...
+2026-04-09 05:23:50,500 - main - INFO - Shutting down...
+2026-04-09 05:23:59,738 - main - INFO - Model loaded successfully
+2026-04-09 05:24:01,809 - main - INFO - Shutting down...
+2026-04-09 05:24:01,811 - main - INFO - Shutting down...
+2026-04-09 05:24:01,918 - main - INFO - Shutting down...
+2026-04-09 05:24:09,247 - main - INFO - Model loaded successfully
+2026-04-09 05:24:09,248 - main - INFO - Model loaded successfully
+2026-04-09 05:24:09,253 - main - INFO - Model loaded successfully
+2026-04-09 05:50:44,570 - main - INFO - Model loaded successfully
+2026-04-09 05:54:01,704 - main - INFO - Login attempt: admin
+2026-04-09 05:54:01,747 - main - INFO - Successful login: admin
+2026-04-09 05:54:43,507 - main - INFO - Prediction request from user: admin
+2026-04-09 05:54:43,750 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-09 06:00:16,036 - main - INFO - Shutting down...
+2026-04-09 06:00:16,055 - main - INFO - Shutting down...
+2026-04-09 06:00:16,133 - main - INFO - Shutting down...
+2026-04-09 06:00:20,153 - main - INFO - Shutting down...
+2026-04-09 06:00:35,123 - main - INFO - Model loaded successfully
+2026-04-10 00:45:45,207 - main - INFO - Model loaded successfully
+2026-04-10 00:48:41,671 - main - INFO - Login attempt: admin 
+2026-04-10 00:48:41,672 - main - WARNING - Failed login attempt: admin 
+2026-04-10 00:49:13,571 - main - INFO - Login attempt: admin 
+2026-04-10 00:49:13,571 - main - WARNING - Failed login attempt: admin 
+2026-04-10 00:49:14,308 - main - INFO - Login attempt: admin 
+2026-04-10 00:49:14,308 - main - WARNING - Failed login attempt: admin 
+2026-04-10 00:49:34,338 - main - INFO - Login attempt: admin
+2026-04-10 00:49:34,369 - main - INFO - Successful login: admin
+2026-04-10 00:50:22,301 - main - INFO - Prediction request from user: admin
+2026-04-10 00:50:22,620 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-10 00:50:59,121 - main - INFO - Prediction request from user: admin
+2026-04-10 00:50:59,349 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-10 01:00:27,035 - main - INFO - Login attempt: admin 
+2026-04-10 01:00:27,037 - main - WARNING - Failed login attempt: admin 
+2026-04-10 01:00:35,979 - main - INFO - Login attempt: admin 
+2026-04-10 01:00:35,980 - main - WARNING - Failed login attempt: admin 
+2026-04-10 01:00:54,179 - main - INFO - Login attempt: user
+2026-04-10 01:00:54,210 - main - INFO - Successful login: user
+2026-04-10 01:01:17,529 - main - INFO - Prediction request from user: user
+2026-04-10 01:01:17,897 - main - INFO - Prediction completed for user user: approved=1
+2026-04-10 01:07:19,573 - main - INFO - Model loaded successfully
+2026-04-10 01:07:54,311 - main - INFO - Login attempt: admin
+2026-04-10 01:07:54,311 - main - INFO - Successful login: admin
+2026-04-10 01:07:54,318 - main - INFO - Prediction request from user: admin
+2026-04-10 01:07:54,572 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-10 01:07:54,693 - main - INFO - Shutting down...
+2026-04-10 01:08:12,389 - main - INFO - Model loaded successfully
+2026-04-10 01:09:32,959 - main - INFO - Login attempt: admin
+2026-04-10 01:09:32,989 - main - INFO - Successful login: admin
+2026-04-10 01:09:33,001 - main - INFO - Prediction request from user: admin
+2026-04-10 01:09:33,277 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-10 01:09:33,386 - main - INFO - Shutting down...
+2026-04-10 01:09:39,535 - main - INFO - Shutting down...
+2026-04-10 01:09:50,075 - main - INFO - Model loaded successfully
+2026-04-10 01:09:56,425 - main - INFO - Model loaded successfully
+2026-04-10 01:14:07,265 - main - INFO - Login attempt: admin
+2026-04-10 01:14:07,272 - main - INFO - Successful login: admin
+2026-04-10 01:14:34,153 - main - INFO - Prediction request from user: admin
+2026-04-10 01:14:34,489 - main - INFO - Prediction completed for user admin: approved=0
+2026-04-10 01:37:03,347 - main - INFO - Prediction request from user: admin
+2026-04-10 01:37:03,623 - main - INFO - Prediction completed for user admin: approved=1
+2026-04-10 01:48:13,917 - main - INFO - Login attempt: admin
+2026-04-10 01:48:13,963 - main - INFO - Successful login: admin
