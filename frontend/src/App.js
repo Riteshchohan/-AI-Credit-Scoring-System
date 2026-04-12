@@ -139,6 +139,9 @@ function App() {
         ? { username: authForm.username, password: authForm.password }
         : { username: authForm.username, password: authForm.password, email: authForm.email };
 
+      // Wake up the backend first (free Render tier spins down after inactivity)
+      try { await fetch(`${API_URL}/`, { method: 'GET' }); } catch (_) {}
+
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
@@ -157,7 +160,9 @@ function App() {
       setIsAuthenticated(true);
       setAuthForm({ username: '', password: '', email: '' });
     } catch (err) {
-      setAuthError(err.message || `Unable to ${authMode}`);
+      setAuthError(err.message === 'Failed to fetch'
+        ? 'Server is waking up, please wait 30 seconds and try again.'
+        : err.message || `Unable to ${authMode}`);
     } finally {
       setAuthLoading(false);
     }
