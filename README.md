@@ -2,6 +2,14 @@
 
 A comprehensive loan approval prediction system with JWT authentication, modern UI, and XGBoost-powered ML model.
 
+## 🌐 Live Demo
+
+| Service | URL |
+|---------|-----|
+| 🎨 Frontend | [ai-credit-scoring-system-rho.vercel.app](https://ai-credit-scoring-system-rho.vercel.app) |
+| ⚙️ Backend API | [ai-credit-scoring-system.onrender.com](https://ai-credit-scoring-system.onrender.com) |
+| 📚 API Docs | [ai-credit-scoring-system.onrender.com/docs](https://ai-credit-scoring-system.onrender.com/docs) |
+
 ## 🚀 Features
 
 ### Backend (FastAPI)
