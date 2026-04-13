@@ -1,6 +1,6 @@
 """
 FastAPI Backend for Loan Approval Prediction System
-With FREE AI Financial Assistant using Hugging Face Flan-T5
+With smart rule-based AI suggestions (no heavy ML models)
 """
  
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -24,12 +24,20 @@ from loan_approval_model import (
     explain_prediction
 )
  
+# ============================================================================
+# LOGGING
+# ============================================================================
+ 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[logging.FileHandler('app.log'), logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+ 
+# ============================================================================
+# SECURITY CONFIG
+# ============================================================================
  
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production")
 ALGORITHM = "HS256"
@@ -40,104 +48,157 @@ ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
  
+# ============================================================================
+# GLOBAL VARIABLES
+# ============================================================================
+ 
 MODEL = None
 PREPROCESSOR = None
 X_TRAIN = None
 FEATURE_NAMES = None
-LLM_PIPELINE = None
-LLM_LOADED = False
+ 
+# Stores last prediction for /ask endpoint
 LATEST_PREDICTION_CONTEXT = {"result": None, "score": None, "features": []}
  
-def get_llm():
-    global LLM_PIPELINE, LLM_LOADED
-    if LLM_LOADED and LLM_PIPELINE is not None:
-        return LLM_PIPELINE
-    try:
-        from transformers import pipeline
-        logger.info("Loading Flan-T5-base model...")
-        LLM_PIPELINE = pipeline("text2text-generation", model="google/flan-t5-base", max_new_tokens=200)
-        LLM_LOADED = True
-        logger.info("Flan-T5-base loaded successfully.")
-    except Exception as e:
-        logger.warning(f"Flan-T5-base failed: {e}. Trying flan-t5-small...")
-        try:
-            from transformers import pipeline
-            LLM_PIPELINE = pipeline("text2text-generation", model="google/flan-t5-small", max_new_tokens=150)
-            LLM_LOADED = True
-            logger.info("Flan-T5-small loaded successfully.")
-        except Exception as e2:
-            logger.error(f"Both LLM models failed: {e2}")
-            LLM_PIPELINE = None
-            LLM_LOADED = True
-    return LLM_PIPELINE
+# ============================================================================
+# SMART RULE-BASED AI SUGGESTIONS (no heavy model, instant response)
+# ============================================================================
  
 def generate_suggestions(result: str, score: int, features: list) -> str:
-    try:
-        llm = get_llm()
-        if llm is None:
-            return _fallback_suggestions(result, score, features)
-        feature_text = ", ".join([f"{f['feature']} (impact: {f['impact']:.3f})" for f in features[:3]]) if features else "credit history, income, loan amount"
-        prompt = (
-            f"You are a fintech financial advisor. "
-            f"A loan application was {result} with a credit score of {score}. "
-            f"The top factors were: {feature_text}. "
-            f"Give 3 short actionable suggestions to improve loan approval chances. "
-            f"Be specific and helpful."
-        )
-        response = llm(prompt, max_new_tokens=200)[0]["generated_text"]
-        return response.strip()
-    except Exception as e:
-        logger.error(f"AI suggestion generation failed: {e}")
-        return _fallback_suggestions(result, score, features)
+    """
+    Generate smart financial suggestions based on loan result,
+    credit score, and top SHAP features. Fully rule-based — instant and lightweight.
+    """
+    suggestions = []
+ 
+    # Analyze top features for personalized advice
+    feature_names = [f['feature'].lower() for f in features] if features else []
+    feature_impacts = {f['feature'].lower(): f['impact'] for f in features} if features else {}
+ 
+    if result == "Approved":
+        intro = f"🎉 Congratulations! Your loan was approved with a credit score of {score}."
+        suggestions.append("✅ Keep making all payments on time to maintain your strong credit profile.")
+ 
+        if score < 750:
+            suggestions.append("📈 Your score can still improve — pay down existing debts to push above 750.")
+        else:
+            suggestions.append("💎 Excellent score! Consider negotiating a lower interest rate with your lender.")
+ 
+        if any('income' in f for f in feature_names):
+            suggestions.append("💼 Your income was a key factor — maintaining stable employment will help future applications.")
+        else:
+            suggestions.append("🏦 Diversify savings and maintain an emergency fund of 3-6 months of expenses.")
+ 
+    else:
+        intro = f"❌ Your loan was not approved. Your current credit score is {score}."
+ 
+        # Credit history advice
+        if any('credit' in f for f in feature_names):
+            neg_impact = any(feature_impacts.get(f, 0) < 0 for f in feature_names if 'credit' in f)
+            if neg_impact:
+                suggestions.append("🔑 Credit history is your biggest obstacle — start by paying ALL bills on time for 6+ months.")
+            else:
+                suggestions.append("📊 Build your credit history by getting a secured credit card and using it responsibly.")
+ 
+        # Income advice
+        if any('income' in f for f in feature_names):
+            suggestions.append("💰 Low income vs loan amount is a concern — consider applying for a smaller loan or adding a co-applicant with higher income.")
+        else:
+            suggestions.append("💰 Increase your income or reduce the loan amount to improve your debt-to-income ratio.")
+ 
+        # Score-based advice
+        if score < 500:
+            suggestions.append("⚠️ Score below 500: Focus on clearing any defaults or late payments before reapplying in 6 months.")
+        elif score < 650:
+            suggestions.append("📅 Score between 500-650: Consistent on-time payments for 3-6 months can significantly boost your score.")
+        else:
+            suggestions.append("🔄 Score near approval range — a small loan amount reduction or co-applicant may tip the decision in your favor.")
+ 
+    return f"{intro}\n\n💡 Personalized Suggestions:\n" + "\n".join(suggestions)
+ 
  
 def answer_user_question(question: str, context: dict) -> str:
-    try:
-        llm = get_llm()
-        if llm is None:
-            return "AI assistant is currently unavailable. Please try again later."
-        result = context.get("result", "Unknown")
-        score = context.get("score", "Unknown")
-        features = context.get("features", [])
-        feature_text = ", ".join([f"{f['feature']} (impact: {f['impact']:.3f})" for f in features[:3]]) if features else "not available"
-        prompt = (
-            f"You are a helpful fintech AI assistant. "
-            f"Context: Loan was {result}, credit score is {score}, "
-            f"top factors are {feature_text}. "
-            f"Question: {question} "
-            f"Answer clearly and concisely in 2-3 sentences."
-        )
-        response = llm(prompt, max_new_tokens=150)[0]["generated_text"]
-        return response.strip()
-    except Exception as e:
-        logger.error(f"AI question answering failed: {e}")
-        return "I could not process your question at this time. Please try again."
+    """
+    Answer user questions about their loan using rule-based logic.
+    Fast, reliable, no external dependencies.
+    """
+    result = context.get("result", "Unknown")
+    score = context.get("score", 0)
+    features = context.get("features", [])
+    q = question.lower()
  
-def _fallback_suggestions(result: str, score: int, features: list) -> str:
-    if result == "Approved":
-        return (f"Your loan was approved with a credit score of {score}. "
-                "To maintain your standing: 1. Keep making timely payments. "
-                "2. Avoid excessive new debt. 3. Maintain stable income.")
-    return (f"Your loan was rejected with a credit score of {score}. "
-            "To improve: 1. Pay all bills on time to build credit history. "
-            "2. Reduce existing debt to improve debt-to-income ratio. "
-            "3. Consider a smaller loan amount or adding a co-applicant.")
+    # Score-related questions
+    if any(word in q for word in ["score", "credit score", "number"]):
+        rating = "excellent" if score >= 750 else "good" if score >= 650 else "fair" if score >= 550 else "poor"
+        return f"Your credit score is {score}/900, which is considered {rating}. Scores above 700 generally have higher approval rates."
+ 
+    # Approval/rejection reason
+    if any(word in q for word in ["why", "reason", "rejected", "approved", "denied"]):
+        if features:
+            top = features[0]['feature']
+            impact = features[0]['impact']
+            direction = "positively" if impact > 0 else "negatively"
+            return f"Your loan was {result} mainly because '{top}' influenced the decision {direction} (impact: {impact:.3f}). Other key factors were: {', '.join([f['feature'] for f in features[1:3]])}."
+        return f"Your loan was {result} based on a combination of your credit history, income, and loan amount."
+ 
+    # Improvement questions
+    if any(word in q for word in ["improve", "increase", "better", "boost", "raise"]):
+        if score < 650:
+            return "To improve your chances: 1) Pay all bills on time for 6+ months, 2) Reduce existing debt, 3) Avoid applying for multiple loans simultaneously."
+        return "To improve further: 1) Keep credit utilization below 30%, 2) Maintain stable employment, 3) Consider paying down existing loans."
+ 
+    # Feature-specific questions
+    if any(word in q for word in ["income", "salary", "earning"]):
+        return "Income is a major factor. Lenders look at your debt-to-income ratio. A higher income relative to your loan amount improves approval chances."
+ 
+    if any(word in q for word in ["history", "credit history", "past"]):
+        return "Credit history shows your track record of repaying debts. A score of 1.0 (good history) significantly increases approval probability."
+ 
+    if any(word in q for word in ["amount", "loan amount", "borrow"]):
+        return "A smaller loan amount relative to your income improves approval chances. Try reducing the loan amount by 10-20% if rejected."
+ 
+    if any(word in q for word in ["reapply", "apply again", "try again", "when"]):
+        if result == "Rejected":
+            return "We recommend waiting 3-6 months before reapplying. Use that time to improve your credit score and reduce existing debts."
+        return "Your loan is approved — no need to reapply. Contact your lender to proceed with the next steps."
+ 
+    # Default response
+    return f"Your loan was {result} with a credit score of {score}. The top factors were: {', '.join([f['feature'] for f in features[:3]])}. Ask me about your score, reasons, or how to improve!"
+ 
+ 
+# ============================================================================
+# LIFESPAN
+# ============================================================================
  
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model_and_data()
-    logger.info("ML Model loaded successfully")
-    try:
-        import threading
-        thread = threading.Thread(target=get_llm, daemon=True)
-        thread.start()
-        logger.info("AI assistant loading in background...")
-    except Exception as e:
-        logger.warning(f"AI assistant background load failed: {e}")
+    logger.info("Model loaded successfully")
     yield
     logger.info("Shutting down...")
  
-app = FastAPI(title="Loan Approval Prediction API", description="ML-powered API with AI financial assistant", version="3.0.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["*"])
+# ============================================================================
+# APP INIT
+# ============================================================================
+ 
+app = FastAPI(
+    title="Loan Approval Prediction API",
+    description="ML-powered API with smart AI financial assistant",
+    version="3.0.0",
+    lifespan=lifespan
+)
+ 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+ 
+# ============================================================================
+# SCHEMAS
+# ============================================================================
  
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
@@ -154,6 +215,47 @@ class Token(BaseModel):
  
 class TokenData(BaseModel):
     username: Optional[str] = None
+ 
+class LoanApplicationRequest(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"Gender": "Male", "Married": "Yes", "Dependents": "2", "Education": "Graduate", "Self_Employed": "No", "ApplicantIncome": 50000, "CoapplicantIncome": 0, "LoanAmount": 200000, "Loan_Amount_Term": 360, "Credit_History": 1.0, "Property_Area": "Urban"}})
+    Gender: str
+    Married: str
+    Dependents: str
+    Education: str
+    Self_Employed: str
+    ApplicantIncome: float
+    CoapplicantIncome: float
+    LoanAmount: float
+    Loan_Amount_Term: float
+    Credit_History: float
+    Property_Area: str
+ 
+class FeatureImportance(BaseModel):
+    feature: str
+    impact: float
+    value: float
+ 
+class PredictionResponse(BaseModel):
+    loan_approved: int
+    approval_probability: float
+    credit_score: int
+    top_features: List[FeatureImportance]
+    ai_suggestions: str
+ 
+class HealthResponse(BaseModel):
+    status: str
+    message: str
+ 
+class UserQuestionRequest(BaseModel):
+    question: str = Field(..., min_length=3, max_length=500)
+ 
+class UserQuestionResponse(BaseModel):
+    answer: str
+    context_available: bool
+ 
+# ============================================================================
+# AUTH FUNCTIONS
+# ============================================================================
  
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -190,42 +292,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise credentials_exception
     return user
  
-class LoanApplicationRequest(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"example": {"Gender": "Male", "Married": "Yes", "Dependents": "2", "Education": "Graduate", "Self_Employed": "No", "ApplicantIncome": 50000, "CoapplicantIncome": 0, "LoanAmount": 200000, "Loan_Amount_Term": 360, "Credit_History": 1.0, "Property_Area": "Urban"}})
-    Gender: str = Field(..., description="Male/Female")
-    Married: str = Field(..., description="Yes/No")
-    Dependents: str = Field(..., description="Number of dependents (0, 1, 2, 3+)")
-    Education: str = Field(..., description="Graduate/Undergraduate")
-    Self_Employed: str = Field(..., description="Yes/No")
-    ApplicantIncome: float = Field(..., description="Income in USD")
-    CoapplicantIncome: float = Field(..., description="Co-applicant income in USD")
-    LoanAmount: float = Field(..., description="Loan amount in USD")
-    Loan_Amount_Term: float = Field(..., description="Loan term in months")
-    Credit_History: float = Field(..., description="Credit history (0.0-1.0)")
-    Property_Area: str = Field(..., description="Urban/Semiurban/Rural")
- 
-class FeatureImportance(BaseModel):
-    feature: str
-    impact: float
-    value: float
- 
-class PredictionResponse(BaseModel):
-    loan_approved: int
-    approval_probability: float
-    credit_score: int
-    top_features: List[FeatureImportance]
-    ai_suggestions: str
- 
-class HealthResponse(BaseModel):
-    status: str
-    message: str
- 
-class UserQuestionRequest(BaseModel):
-    question: str = Field(..., min_length=3, max_length=500)
- 
-class UserQuestionResponse(BaseModel):
-    answer: str
-    context_available: bool
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
  
 def _get_transformed_feature_names(preprocessor) -> list:
     if preprocessor is None:
@@ -311,6 +380,10 @@ def ensure_model_loaded():
     if MODEL is None or PREPROCESSOR is None:
         load_model_and_data()
  
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
+ 
 @app.post("/register", response_model=Token)
 async def register_user(user: UserCreate):
     try:
@@ -343,7 +416,12 @@ async def health_check():
  
 @app.get("/health")
 async def detailed_health():
-    return {"api_status": "running", "model_loaded": MODEL is not None, "preprocessor_loaded": PREPROCESSOR is not None, "training_samples": X_TRAIN.shape[0] if X_TRAIN is not None else 0, "ai_assistant_loaded": LLM_LOADED and LLM_PIPELINE is not None}
+    return {
+        "api_status": "running",
+        "model_loaded": MODEL is not None,
+        "preprocessor_loaded": PREPROCESSOR is not None,
+        "training_samples": X_TRAIN.shape[0] if X_TRAIN is not None else 0
+    }
  
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_loan(request: LoanApplicationRequest, current_user: dict = Depends(get_current_user)):
@@ -375,15 +453,14 @@ async def predict_loan(request: LoanApplicationRequest, current_user: dict = Dep
 @app.post("/ask", response_model=UserQuestionResponse)
 async def ask_question(request: UserQuestionRequest, current_user: dict = Depends(get_current_user)):
     try:
-        logger.info(f"AI question from user {current_user['username']}: {request.question}")
+        logger.info(f"Question from user {current_user['username']}: {request.question}")
         context_available = LATEST_PREDICTION_CONTEXT["result"] is not None
         if not context_available:
             return {"answer": "Please make a loan prediction first, then I can answer questions about your results.", "context_available": False}
         answer = answer_user_question(question=request.question, context=LATEST_PREDICTION_CONTEXT)
-        logger.info(f"AI answer generated for user: {current_user['username']}")
         return {"answer": answer, "context_available": True}
     except Exception as e:
-        logger.error(f"AI question failed for user {current_user['username']}: {str(e)}")
+        logger.error(f"Question failed for user {current_user['username']}: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Question answering failed: {str(e)}")
  
 @app.exception_handler(ValueError)
@@ -393,3 +470,4 @@ async def value_error_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+ 

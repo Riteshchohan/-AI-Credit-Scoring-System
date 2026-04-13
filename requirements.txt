@@ -9,6 +9,3 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 xgboost
-transformers
-torch
-sentencepiece
