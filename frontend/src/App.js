@@ -9,25 +9,28 @@ import {
   SparklesIcon,
   UserCircleIcon,
   XCircleIcon,
+  ChatBubbleLeftRightIcon,
+  PaperAirplaneIcon,
+  LightBulbIcon,
 } from '@heroicons/react/24/outline';
-
-//const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'; //
+ 
+//const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const API_URL = process.env.REACT_APP_API_URL || 'https://ai-credit-scoring-system.onrender.com';
-
+ 
 const initialForm = {
   ApplicantIncome: '',
   LoanAmount: '',
   Credit_History: '1.0',
   Dependents: '0'
 };
-
+ 
 const getRiskLevel = (approved, score) => {
   if (approved !== 1) return { level: 'High', color: 'text-red-600', bg: 'bg-red-50' };
   if (score >= 700) return { level: 'Low', color: 'text-green-600', bg: 'bg-green-50' };
   if (score >= 600) return { level: 'Medium', color: 'text-yellow-600', bg: 'bg-yellow-50' };
   return { level: 'High', color: 'text-red-600', bg: 'bg-red-50' };
 };
-
+ 
 function BrandMark({ compact = false }) {
   return (
     <div className="flex items-center gap-3">
@@ -50,7 +53,7 @@ function BrandMark({ compact = false }) {
     </div>
   );
 }
-
+ 
 function StatCard({ icon: Icon, label, value, tone = 'neutral', sub }) {
   const toneStyles = {
     neutral: 'bg-white',
@@ -59,7 +62,6 @@ function StatCard({ icon: Icon, label, value, tone = 'neutral', sub }) {
     bad: 'bg-rose-50/60 border-rose-100',
     brand: 'bg-brand-50/70 border-brand-100',
   };
-
   return (
     <div className={`rounded-2xl border p-4 ${toneStyles[tone] || toneStyles.neutral}`}>
       <div className="flex items-start justify-between gap-3">
@@ -77,11 +79,10 @@ function StatCard({ icon: Icon, label, value, tone = 'neutral', sub }) {
     </div>
   );
 }
-
+ 
 function FeatureRow({ feature, impact }) {
   const magnitude = Math.min(1, Math.abs(Number(impact)) / 0.5);
   const positive = Number(impact) >= 0;
-
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <div className="flex items-start justify-between gap-4">
@@ -105,11 +106,173 @@ function FeatureRow({ feature, impact }) {
     </div>
   );
 }
-
+ 
+// ── AI Suggestions Card ──────────────────────────────────────────────────────
+function AISuggestionsCard({ suggestions }) {
+  if (!suggestions) return null;
+ 
+  // Split numbered suggestions into individual points if possible
+  const lines = suggestions
+    .split(/(?=\d\.\s)/)
+    .map(s => s.trim())
+    .filter(Boolean);
+ 
+  return (
+    <div className="surface rounded-3xl p-6 border border-brand-100 bg-gradient-to-br from-brand-50/60 to-white">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-extrabold tracking-tight text-slate-900">
+            AI Financial Advice
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Personalised suggestions based on your application.
+          </p>
+        </div>
+        <div className="rounded-xl bg-brand-100 p-2 ring-1 ring-brand-200">
+          <LightBulbIcon className="h-5 w-5 text-brand-700" />
+        </div>
+      </div>
+ 
+      <div className="mt-4 grid gap-3">
+        {lines.length > 1 ? (
+          lines.map((line, idx) => (
+            <div key={idx} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-3">
+              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
+                {idx + 1}
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                {line.replace(/^\d\.\s*/, '')}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-slate-700 leading-relaxed">{suggestions}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+ 
+// ── AI Q&A Card ──────────────────────────────────────────────────────────────
+function AIQACard({ token, apiUrl }) {
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [qaLoading, setQaLoading] = useState(false);
+  const [qaError, setQaError] = useState('');
+ 
+  const suggestedQuestions = [
+    'Why was my loan approved or rejected?',
+    'How can I improve my credit score?',
+    'What is the most important factor in my result?',
+  ];
+ 
+  const askQuestion = async (q) => {
+    const text = q || question;
+    if (!text.trim()) return;
+    setQaError('');
+    setAnswer('');
+    setQaLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ question: text })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || 'Failed to get answer');
+      }
+      const data = await response.json();
+      setAnswer(data.answer);
+    } catch (err) {
+      setQaError(err.message || 'Unable to get answer. Please try again.');
+    } finally {
+      setQaLoading(false);
+    }
+  };
+ 
+  return (
+    <div className="surface rounded-3xl p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-extrabold tracking-tight text-slate-900">
+            Ask AI Assistant
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Ask anything about your loan decision.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-100 p-2 ring-1 ring-slate-200">
+          <ChatBubbleLeftRightIcon className="h-5 w-5 text-slate-700" />
+        </div>
+      </div>
+ 
+      {/* Suggested questions */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {suggestedQuestions.map((q, idx) => (
+          <button
+            key={idx}
+            onClick={() => { setQuestion(q); askQuestion(q); }}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+ 
+      {/* Input */}
+      <div className="mt-4 flex gap-2">
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && askQuestion()}
+          placeholder="Type your question..."
+          className="input flex-1 text-sm"
+        />
+        <button
+          onClick={() => askQuestion()}
+          disabled={qaLoading || !question.trim()}
+          className="btn-primary flex items-center gap-1 px-4 py-2 text-sm disabled:opacity-50"
+        >
+          {qaLoading ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          ) : (
+            <PaperAirplaneIcon className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+ 
+      {/* Error */}
+      {qaError && (
+        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <ExclamationTriangleIcon className="h-4 w-4 shrink-0" />
+          {qaError}
+        </div>
+      )}
+ 
+      {/* Answer */}
+      {answer && (
+        <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <SparklesIcon className="h-4 w-4 text-brand-700" />
+            <span className="text-xs font-semibold text-brand-700">AI Answer</span>
+          </div>
+          <p className="text-sm text-slate-700 leading-relaxed">{answer}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+ 
+// ── Main App ─────────────────────────────────────────────────────────────────
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [token, setToken] = useState('');
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({ username: '', password: '', email: '' });
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -117,44 +280,40 @@ function App() {
   const [error, setError] = useState('');
   const [authError, setAuthError] = useState('');
   const [result, setResult] = useState(null);
-
+ 
   const handleAuthChange = (event) => {
     const { name, value } = event.target;
     setAuthForm((prev) => ({ ...prev, [name]: value }));
   };
-
+ 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
+ 
   const handleAuth = async (event) => {
     event.preventDefault();
     setAuthError('');
     setAuthLoading(true);
-
     try {
       const endpoint = authMode === 'login' ? '/login' : '/register';
       const payload = authMode === 'login'
         ? { username: authForm.username, password: authForm.password }
         : { username: authForm.username, password: authForm.password, email: authForm.email };
-
-      // Wake up the backend first (free Render tier spins down after inactivity)
+ 
       try { await fetch(`${API_URL}/`, { method: 'GET' }); } catch (_) {}
-
+ 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
+ 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.detail || `${authMode === 'login' ? 'Login' : 'Registration'} failed`);
       }
-
+ 
       const data = await response.json();
       setToken(data.access_token);
       setIsAuthenticated(true);
@@ -167,14 +326,14 @@ function App() {
       setAuthLoading(false);
     }
   };
-
+ 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setToken('');
     setResult(null);
     setFormData(initialForm);
   };
-
+ 
   const buildPayload = () => ({
     Gender: 'Male',
     Married: 'Yes',
@@ -188,13 +347,12 @@ function App() {
     Credit_History: Number(formData.Credit_History),
     Property_Area: 'Urban'
   });
-
+ 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
     setResult(null);
     setLoading(true);
-
     try {
       const payload = buildPayload();
       const response = await fetch(`${API_URL}/predict`, {
@@ -205,19 +363,20 @@ function App() {
         },
         body: JSON.stringify(payload)
       });
-
+ 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         throw new Error(body?.detail || 'Prediction request failed');
       }
-
+ 
       const data = await response.json();
       setResult({
         approval: data.loan_approved === 1 ? 'Approved' : 'Rejected',
         probability: data.approval_probability,
         creditScore: data.credit_score,
         risk: getRiskLevel(data.loan_approved, data.credit_score),
-        topFeatures: data.top_features
+        topFeatures: data.top_features,
+        aiSuggestions: data.ai_suggestions || null
       });
     } catch (err) {
       setError(err.message || 'Unable to contact backend');
@@ -225,150 +384,109 @@ function App() {
       setLoading(false);
     }
   };
-
+ 
+  // ── Login / Register Screen ────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto grid w-full max-w-5xl grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-          <div className="surface rounded-3xl p-7 sm:p-9">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-brand-50/30 flex">
+        <div className="m-auto w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-0 overflow-hidden rounded-3xl shadow-2xl shadow-slate-200/60 border border-slate-200/60">
+ 
+          {/* Left — form */}
+          <div className="bg-white p-10 flex flex-col justify-center">
             <BrandMark />
-
-            <div className="mt-8">
-              <div className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-800 ring-1 ring-brand-100">
-                <ShieldCheckIcon className="h-4 w-4" />
-                Secure decisioning with explainability
-              </div>
-
-              <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-                {authMode === 'login' ? 'Welcome back' : 'Create your account'}
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {authMode === 'login'
-                  ? 'Sign in to generate a credit score and see the most important factors behind the decision.'
-                  : 'Register to access predictions and a clear breakdown of what influenced the outcome.'}
-              </p>
-            </div>
-
-            <form className="mt-8 grid gap-4" onSubmit={handleAuth}>
+            <h1 className="mt-8 text-3xl font-extrabold tracking-tight text-slate-900">
+              {authMode === 'login' ? 'Welcome back' : 'Create account'}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              {authMode === 'login'
+                ? 'Sign in to generate a credit score and see the most important factors behind the decision.'
+                : 'Create your account to get started with AI-powered loan analysis.'}
+            </p>
+ 
+            <form onSubmit={handleAuth} className="mt-8 grid gap-4">
               <div className="grid gap-2">
                 <label className="text-xs font-semibold text-slate-700">Username</label>
                 <div className="relative">
-                  <UserCircleIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                  <input
-                    name="username"
-                    type="text"
-                    required
-                    className="input pl-10"
-                    placeholder="admin"
-                    value={authForm.username}
-                    onChange={handleAuthChange}
-                  />
+                  <UserCircleIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input name="username" type="text" required value={authForm.username} onChange={handleAuthChange} placeholder="admin" className="input pl-9" />
                 </div>
               </div>
-
+ 
               {authMode === 'register' && (
                 <div className="grid gap-2">
                   <label className="text-xs font-semibold text-slate-700">Email</label>
-                  <input
-                    name="email"
-                    type="email"
-                    required
-                    className="input"
-                    placeholder="name@example.com"
-                    value={authForm.email}
-                    onChange={handleAuthChange}
-                  />
+                  <input name="email" type="email" required value={authForm.email} onChange={handleAuthChange} placeholder="you@example.com" className="input" />
                 </div>
               )}
-
+ 
               <div className="grid gap-2">
                 <label className="text-xs font-semibold text-slate-700">Password</label>
                 <div className="relative">
-                  <LockClosedIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                  <input
-                    name="password"
-                    type="password"
-                    required
-                    className="input pl-10"
-                    placeholder={authMode === 'login' ? 'admin123' : 'Minimum 6 characters'}
-                    value={authForm.password}
-                    onChange={handleAuthChange}
-                  />
+                  <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input name="password" type="password" required value={authForm.password} onChange={handleAuthChange} placeholder="••••••••" className="input pl-9" />
                 </div>
               </div>
-
+ 
               {authError && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                  {authError}
+                <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                  <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div>{authError}</div>
                 </div>
               )}
-
-              <button type="submit" disabled={authLoading} className="btn-primary">
-                {authLoading ? 'Processing…' : (authMode === 'login' ? 'Sign in' : 'Create account')}
+ 
+              <button type="submit" disabled={authLoading} className="btn-primary mt-2">
+                {authLoading ? 'Please wait…' : authMode === 'login' ? 'Sign in' : 'Create account'}
                 <ArrowRightOnRectangleIcon className="h-4 w-4" />
               </button>
-
-              <div className="text-center text-sm text-slate-600">
-                {authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-                <button
-                  type="button"
-                  onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-                  className="font-semibold text-brand-800 hover:text-brand-900"
-                >
-                  {authMode === 'login' ? 'Sign up' : 'Sign in'}
-                </button>
-              </div>
-
-              <div className="mt-2 grid gap-3 rounded-2xl border border-slate-200 bg-white/60 p-4">
-                <div className="text-xs font-semibold text-slate-700">Demo credentials</div>
-                <div className="grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                  <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-                    <div className="font-semibold text-slate-900">admin</div>
-                    <div>admin123</div>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-                    <div className="font-semibold text-slate-900">user</div>
-                    <div>user123</div>
-                  </div>
-                </div>
-              </div>
             </form>
-          </div>
-
-          <div className="surface hidden rounded-3xl p-7 sm:p-9 lg:block">
-            <div className="flex items-center justify-between">
-              <div className="chip bg-accent-100 text-accent-900 ring-1 ring-accent-200">
-                <SparklesIcon className="mr-1 h-4 w-4" />
-                Smart scoring
-              </div>
-              <div className="chip bg-brand-50 text-brand-900 ring-1 ring-brand-100">
-                <ChartBarIcon className="mr-1 h-4 w-4" />
-                Explainable AI
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
-                Professional, modern and consistent branding
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Clean spacing, refined typography, and an accessible color system that matches your reference (teal + lime).
-              </p>
-            </div>
-
-            <div className="mt-7 grid gap-4">
-              <StatCard icon={CheckCircleIcon} label="Approval outcome" value="Approved / Rejected" tone="brand" sub="Clear status at a glance" />
-              <div className="grid grid-cols-2 gap-4">
-                <StatCard icon={ShieldCheckIcon} label="Risk tier" value="Low / Med / High" tone="neutral" />
-                <StatCard icon={ChartBarIcon} label="Confidence" value="0–100%" tone="neutral" />
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <div className="text-xs font-semibold text-slate-700">Top factors</div>
-                <div className="mt-3 grid gap-3">
-                  <FeatureRow feature="Credit_History" impact={0.214} />
-                  <FeatureRow feature="ApplicantIncome" impact={0.132} />
-                  <FeatureRow feature="LoanAmount" impact={-0.087} />
+ 
+            <p className="mt-6 text-center text-sm text-slate-600">
+              {authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
+              <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="font-semibold text-brand-700 hover:underline">
+                {authMode === 'login' ? 'Sign up' : 'Sign in'}
+              </button>
+            </p>
+ 
+            {authMode === 'login' && (
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-semibold text-slate-700 mb-3">Demo credentials</div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-xl bg-white border border-slate-200 p-3">
+                    <div className="font-semibold text-slate-800">admin</div>
+                    <div className="text-slate-500">admin123</div>
+                  </div>
+                  <div className="rounded-xl bg-white border border-slate-200 p-3">
+                    <div className="font-semibold text-slate-800">user</div>
+                    <div className="text-slate-500">user123</div>
+                  </div>
                 </div>
+              </div>
+            )}
+          </div>
+ 
+          {/* Right — preview panel */}
+          <div className="hidden lg:flex flex-col justify-center bg-gradient-to-br from-brand-700 to-brand-900 p-10 text-white">
+            <div className="chip bg-white/10 text-white ring-1 ring-white/20 w-fit mb-6">
+              <SparklesIcon className="mr-1 h-4 w-4" /> Smart scoring
+            </div>
+            <h2 className="text-2xl font-extrabold tracking-tight">Professional, modern and consistent branding</h2>
+            <p className="mt-3 text-sm text-white/70">Clean spacing, refined typography, and an accessible color system that matches your reference (teal + lime).</p>
+            <div className="mt-8 grid gap-3">
+              {[
+                { label: 'Approval outcome', value: 'Approved / Rejected', sub: 'Clear status at a glance' },
+                { label: 'Risk tier', value: 'Low / Med / High' },
+                { label: 'Confidence', value: '0–100%' },
+              ].map((item, i) => (
+                <div key={i} className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                  <div className="text-xs text-white/60">{item.label}</div>
+                  <div className="mt-1 text-lg font-extrabold">{item.value}</div>
+                  {item.sub && <div className="mt-0.5 text-xs text-white/50">{item.sub}</div>}
+                </div>
+              ))}
+              <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                <div className="text-xs text-white/60">AI Suggestions</div>
+                <div className="mt-1 text-sm font-semibold">Personalised financial advice</div>
+                <div className="mt-0.5 text-xs text-white/50">Powered by Hugging Face Flan-T5</div>
               </div>
             </div>
           </div>
@@ -376,159 +494,104 @@ function App() {
       </div>
     );
   }
-
+ 
+  // ── Main Dashboard ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <BrandMark compact />
-          <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 sm:flex">
-              <UserCircleIcon className="h-4 w-4 text-slate-500" />
-              Signed in
-            </div>
-            <button onClick={handleLogout} className="btn-secondary">
-              Logout
-              <ArrowRightOnRectangleIcon className="h-4 w-4" />
-            </button>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-brand-50/20">
+      <header className="sticky top-0 z-10 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <BrandMark />
+          <button onClick={handleLogout} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+            <ArrowRightOnRectangleIcon className="h-4 w-4" />
+            Sign out
+          </button>
         </div>
       </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-          <section className="surface rounded-3xl p-6 lg:col-span-2">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-extrabold tracking-tight text-slate-900">
-                  Loan application
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Enter a few details. We’ll return approval, credit score and the top factors.
-                </p>
+ 
+      <main className="mx-auto max-w-7xl px-6 py-10">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
+ 
+          {/* Left — form */}
+          <section className="lg:col-span-2">
+            <div className="surface rounded-3xl p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Loan application</h2>
+                  <p className="mt-1 text-sm text-slate-600">Enter a few details. We'll return approval, credit score and top factors.</p>
+                </div>
+                <div className="chip bg-accent-100 text-accent-900 ring-1 ring-accent-200">
+                  <SparklesIcon className="mr-1 h-4 w-4" /> Pro UI
+                </div>
               </div>
-              <div className="chip bg-accent-100 text-accent-900 ring-1 ring-accent-200">
-                <SparklesIcon className="mr-1 h-4 w-4" />
-                Pro UI
-              </div>
+ 
+              <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <label htmlFor="ApplicantIncome" className="text-xs font-semibold text-slate-700">Annual income</label>
+                    <input id="ApplicantIncome" name="ApplicantIncome" type="number" required className="input" placeholder="50000" value={formData.ApplicantIncome} onChange={handleChange} />
+                  </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="LoanAmount" className="text-xs font-semibold text-slate-700">Loan amount</label>
+                    <input id="LoanAmount" name="LoanAmount" type="number" required className="input" placeholder="200000" value={formData.LoanAmount} onChange={handleChange} />
+                  </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="Credit_History" className="text-xs font-semibold text-slate-700">Credit history</label>
+                    <select id="Credit_History" name="Credit_History" className="select" value={formData.Credit_History} onChange={handleChange}>
+                      <option value="1.0">Good (1.0)</option>
+                      <option value="0.0">Poor (0.0)</option>
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="Dependents" className="text-xs font-semibold text-slate-700">Dependents</label>
+                    <select id="Dependents" name="Dependents" className="select" value={formData.Dependents} onChange={handleChange}>
+                      <option value="0">0</option>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3+">3+</option>
+                    </select>
+                  </div>
+                </div>
+ 
+                {error && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                    <ExclamationTriangleIcon className="mt-0.5 h-5 w-5" />
+                    <div>{error}</div>
+                  </div>
+                )}
+ 
+                <button type="submit" disabled={loading} className="btn-primary">
+                  {loading ? 'Analyzing…' : 'Get prediction'}
+                  <SparklesIcon className="h-4 w-4" />
+                </button>
+ 
+                <div className="rounded-2xl border border-slate-200 bg-white/60 p-4">
+                  <div className="text-xs font-semibold text-slate-700">What you'll get</div>
+                  <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                    <div className="flex items-center gap-2"><CheckCircleIcon className="h-5 w-5 text-emerald-600" /> Approval status & risk tier</div>
+                    <div className="flex items-center gap-2"><ChartBarIcon className="h-5 w-5 text-brand-700" /> Credit score and probability</div>
+                    <div className="flex items-center gap-2"><ShieldCheckIcon className="h-5 w-5 text-slate-600" /> Key factors with impacts</div>
+                    <div className="flex items-center gap-2"><LightBulbIcon className="h-5 w-5 text-amber-500" /> AI financial suggestions</div>
+                    <div className="flex items-center gap-2"><ChatBubbleLeftRightIcon className="h-5 w-5 text-brand-600" /> Ask AI about your result</div>
+                  </div>
+                </div>
+              </form>
             </div>
-
-            <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <label htmlFor="ApplicantIncome" className="text-xs font-semibold text-slate-700">
-                    Annual income
-                  </label>
-                  <input
-                    id="ApplicantIncome"
-                    name="ApplicantIncome"
-                    type="number"
-                    required
-                    className="input"
-                    placeholder="50000"
-                    value={formData.ApplicantIncome}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <label htmlFor="LoanAmount" className="text-xs font-semibold text-slate-700">
-                    Loan amount
-                  </label>
-                  <input
-                    id="LoanAmount"
-                    name="LoanAmount"
-                    type="number"
-                    required
-                    className="input"
-                    placeholder="200000"
-                    value={formData.LoanAmount}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <label htmlFor="Credit_History" className="text-xs font-semibold text-slate-700">
-                    Credit history
-                  </label>
-                  <select
-                    id="Credit_History"
-                    name="Credit_History"
-                    className="select"
-                    value={formData.Credit_History}
-                    onChange={handleChange}
-                  >
-                    <option value="1.0">Good (1.0)</option>
-                    <option value="0.0">Poor (0.0)</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-2">
-                  <label htmlFor="Dependents" className="text-xs font-semibold text-slate-700">
-                    Dependents
-                  </label>
-                  <select
-                    id="Dependents"
-                    name="Dependents"
-                    className="select"
-                    value={formData.Dependents}
-                    onChange={handleChange}
-                  >
-                    <option value="0">0</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3+">3+</option>
-                  </select>
-                </div>
-              </div>
-
-              {error && (
-                <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                  <ExclamationTriangleIcon className="mt-0.5 h-5 w-5" />
-                  <div>{error}</div>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} className="btn-primary">
-                {loading ? 'Analyzing…' : 'Get prediction'}
-                <SparklesIcon className="h-4 w-4" />
-              </button>
-
-              <div className="rounded-2xl border border-slate-200 bg-white/60 p-4">
-                <div className="text-xs font-semibold text-slate-700">What you’ll get</div>
-                <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                  <div className="flex items-center gap-2">
-                    <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
-                    Approval status & risk tier
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ChartBarIcon className="h-5 w-5 text-brand-700" />
-                    Credit score and probability
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ShieldCheckIcon className="h-5 w-5 text-slate-600" />
-                    Key factors with impacts
-                  </div>
-                </div>
-              </div>
-            </form>
           </section>
-
+ 
+          {/* Right — results */}
           <section className="lg:col-span-3">
             {!result ? (
               <div className="surface flex h-full min-h-[420px] flex-col justify-center rounded-3xl p-8 text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 ring-1 ring-brand-100">
                   <ChartBarIcon className="h-7 w-7 text-brand-700" />
                 </div>
-                <h3 className="mt-4 text-xl font-extrabold tracking-tight text-slate-900">
-                  Results will appear here
-                </h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Submit the form to generate a prediction, credit score, and top factors.
-                </p>
+                <h3 className="mt-4 text-xl font-extrabold tracking-tight text-slate-900">Results will appear here</h3>
+                <p className="mt-2 text-sm text-slate-600">Submit the form to generate a prediction, credit score, AI suggestions, and top factors.</p>
               </div>
             ) : (
               <div className="grid gap-6">
+ 
+                {/* Decision summary */}
                 <div className="surface rounded-3xl p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -540,58 +603,38 @@ function App() {
                       {result.approval}
                     </div>
                   </div>
-
                   <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <StatCard
-                      icon={ShieldCheckIcon}
-                      label="Risk level"
-                      value={result.risk.level}
-                      tone={result.risk.level === 'Low' ? 'good' : result.risk.level === 'Medium' ? 'warn' : 'bad'}
-                      sub="Higher risk may lower approval odds"
-                    />
-                    <StatCard
-                      icon={ChartBarIcon}
-                      label="Approval probability"
-                      value={`${Math.round(result.probability * 100)}%`}
-                      tone="brand"
-                      sub="Model confidence"
-                    />
-                    <StatCard
-                      icon={SparklesIcon}
-                      label="Credit score"
-                      value={result.creditScore}
-                      tone="neutral"
-                      sub="Range 300–900"
-                    />
-                    <StatCard
-                      icon={result.approval === 'Approved' ? CheckCircleIcon : XCircleIcon}
-                      label="Loan status"
-                      value={result.approval}
-                      tone={result.approval === 'Approved' ? 'good' : 'bad'}
-                      sub="Final predicted outcome"
-                    />
+                    <StatCard icon={ShieldCheckIcon} label="Risk level" value={result.risk.level} tone={result.risk.level === 'Low' ? 'good' : result.risk.level === 'Medium' ? 'warn' : 'bad'} sub="Higher risk may lower approval odds" />
+                    <StatCard icon={ChartBarIcon} label="Approval probability" value={`${Math.round(result.probability * 100)}%`} tone="brand" sub="Model confidence" />
+                    <StatCard icon={SparklesIcon} label="Credit score" value={result.creditScore} tone="neutral" sub="Range 300–900" />
+                    <StatCard icon={result.approval === 'Approved' ? CheckCircleIcon : XCircleIcon} label="Loan status" value={result.approval} tone={result.approval === 'Approved' ? 'good' : 'bad'} sub="Final predicted outcome" />
                   </div>
                 </div>
-
+ 
+                {/* Key factors */}
                 <div className="surface rounded-3xl p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Key factors</h2>
-                      <p className="mt-1 text-sm text-slate-600">
-                        The most influential features for this decision.
-                      </p>
+                      <p className="mt-1 text-sm text-slate-600">The most influential features for this decision.</p>
                     </div>
-                    <div className="chip bg-slate-50 text-slate-800 ring-1 ring-slate-200">
-                      Top {result.topFeatures?.length || 0}
-                    </div>
+                    <div className="chip bg-slate-50 text-slate-800 ring-1 ring-slate-200">Top {result.topFeatures?.length || 0}</div>
                   </div>
-
                   <div className="mt-6 grid gap-3">
                     {result.topFeatures?.map((f, idx) => (
                       <FeatureRow key={idx} feature={f.feature} impact={f.impact} />
                     ))}
                   </div>
                 </div>
+ 
+                {/* AI Suggestions */}
+                {result.aiSuggestions && (
+                  <AISuggestionsCard suggestions={result.aiSuggestions} />
+                )}
+ 
+                {/* AI Q&A */}
+                <AIQACard token={token} apiUrl={API_URL} />
+ 
               </div>
             )}
           </section>
@@ -600,5 +643,5 @@ function App() {
     </div>
   );
 }
-
+ 
 export default App;
