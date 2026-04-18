@@ -41,12 +41,9 @@ _raw_origins = os.getenv(
 )
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
-# Hugging Face — using mistralai/Mistral-7B-Instruct via serverless Inference API
-# flan-t5-base was returning empty/broken results; Mistral gives proper natural language
+# Hugging Face Inference API token
+# Models are defined inside query_hf_api() with retry logic across flan-t5-large → flan-t5-base
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
-HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
-# Fallback model if Mistral is busy/unavailable
-HF_FALLBACK_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -59,162 +56,269 @@ FEATURE_NAMES = None
 LATEST_PREDICTION_CONTEXT = {"result": None, "score": None, "features": []}
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
+# Strategy: Try HF Inference API with retry logic.
+# If unavailable, fall back to a rich rule-based system that gives real answers.
+# Models tried in order: flan-t5-large → flan-t5-base → rule-based
+# flan-t5 is text2text: always warm, no instruct tags needed, responds fast.
 
-def query_hf_api(prompt: str, url: str = None) -> str:
+HF_MODELS = [
+    "https://api-inference.huggingface.co/models/google/flan-t5-large",
+    "https://api-inference.huggingface.co/models/google/flan-t5-base",
+]
+
+import time
+
+def query_hf_api(prompt: str) -> str:
     """
-    Call the Hugging Face Inference API with a chat-style prompt.
-    Uses Mistral-7B-Instruct which returns natural, fluent text.
-    Falls back to zephyr-7b-beta if Mistral is loading.
+    Query HF Inference API with retry logic across multiple models.
+    Uses flan-t5 (text2text) — always-on, no instruct format needed.
+    Retries up to 2 times per model on 503 (model loading).
     """
     if not HF_API_TOKEN:
         logger.warning("HF_API_TOKEN not set — using rule-based fallback.")
         return None
 
-    target_url = url or HF_API_URL
     headers = {
         "Authorization": f"Bearer {HF_API_TOKEN}",
         "Content-Type": "application/json"
     }
-
-    # Mistral instruct format uses [INST] tags
-    formatted = f"<s>[INST] {prompt} [/INST]"
     payload = {
-        "inputs": formatted,
-        "parameters": {
-            "max_new_tokens": 180,
-            "temperature": 0.6,
-            "top_p": 0.9,
-            "do_sample": True,
-            "return_full_text": False   # only return the generated part, not the prompt
-        }
+        "inputs": prompt,
+        "parameters": {"max_new_tokens": 200, "temperature": 0.7}
     }
 
-    try:
-        response = requests.post(target_url, headers=headers, json=payload, timeout=20)
+    for model_url in HF_MODELS:
+        for attempt in range(3):  # 3 attempts per model
+            try:
+                response = requests.post(model_url, headers=headers, json=payload, timeout=25)
 
-        if response.status_code == 200:
-            data = response.json()
-            if isinstance(data, list) and data:
-                text = data[0].get("generated_text", "").strip()
-                if text:
-                    return text
-            logger.warning(f"HF API returned empty text from {target_url}")
-            return None
+                if response.status_code == 200:
+                    data = response.json()
+                    # flan-t5 returns: [{"generated_text": "..."}]
+                    if isinstance(data, list) and data:
+                        text = data[0].get("generated_text", "").strip()
+                        if text and len(text) > 15:
+                            logger.info(f"HF API success with {model_url.split('/')[-1]}")
+                            return text
+                    logger.warning(f"HF returned empty text (model: {model_url.split('/')[-1]})")
+                    break  # empty response — try next model
 
-        elif response.status_code == 503:
-            # Model is loading — try fallback once
-            if url is None:
-                logger.warning("Mistral loading, trying Zephyr fallback...")
-                return query_hf_api(prompt, url=HF_FALLBACK_URL)
-            logger.warning("Both models loading, using rule-based fallback.")
-            return None
+                elif response.status_code == 503:
+                    wait = 3 * (attempt + 1)  # 3s, 6s, 9s
+                    logger.warning(f"Model loading (attempt {attempt+1}/3), waiting {wait}s...")
+                    time.sleep(wait)
+                    continue  # retry same model
 
-        else:
-            logger.warning(f"HF API status {response.status_code}: {response.text[:200]}")
-            return None
+                elif response.status_code == 401:
+                    logger.error("HF API: Invalid token. Check HF_API_TOKEN in Render env vars.")
+                    return None  # No point retrying with wrong token
 
-    except requests.Timeout:
-        logger.warning("HF API timed out.")
-        return None
-    except Exception as e:
-        logger.error(f"HF API call failed: {e}")
-        return None
+                else:
+                    logger.warning(f"HF API status {response.status_code}: {response.text[:150]}")
+                    break  # unexpected error — try next model
+
+            except requests.Timeout:
+                logger.warning(f"HF API timeout (attempt {attempt+1}/3, model: {model_url.split('/')[-1]})")
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
+                break
+            except Exception as e:
+                logger.error(f"HF API exception: {e}")
+                break
+
+    logger.warning("All HF models failed — using rule-based fallback.")
+    return None
 
 
 def generate_suggestions(result: str, score: int, features: list) -> str:
     """
     Generate personalised financial advice after a loan decision.
-    Uses Mistral-7B via HF Inference API for natural, helpful responses.
+    Tries HF API first; always returns a meaningful answer regardless.
     """
     try:
-        feature_text = ", ".join(
-            [f"{f['feature'].replace('_', ' ')} (impact: {f['impact']:+.3f})" for f in features[:3]]
-        ) if features else "credit history, income level, and loan amount"
-
+        top_feature = features[0]["feature"].replace("_", " ") if features else "credit history"
+        feature_list = ", ".join(
+            [f["feature"].replace("_", " ") for f in features[:3]]
+        ) if features else "credit history, income, loan amount"
         decision = "approved" if result == "Approved" else "rejected"
 
+        # flan-t5 works best with direct instruction prompts
         prompt = (
-            f"You are a friendly and knowledgeable financial advisor helping a loan applicant understand their result. "
-            f"Their loan was {decision}. Their credit score is {score} out of 900. "
-            f"The three most influential factors were: {feature_text}. "
-            f"Please give exactly 3 clear, actionable suggestions to help them improve their loan approval chances. "
-            f"Write in a warm, encouraging tone. Number each suggestion. Keep it concise — one sentence per suggestion."
+            f"A loan application was {decision}. Credit score: {score} out of 900. "
+            f"Key factors: {feature_list}. "
+            f"Give 3 numbered actionable tips to improve loan approval chances."
         )
 
         answer = query_hf_api(prompt)
         if answer and len(answer.strip()) > 20:
             return answer.strip()
-        return _fallback_suggestions(result, score, features)
+
+        # Always return a real, helpful answer as fallback
+        return _smart_suggestions(result, score, features)
 
     except Exception as e:
         logger.error(f"generate_suggestions failed: {e}")
-        return _fallback_suggestions(result, score, features)
+        return _smart_suggestions(result, score, features)
 
 
 def answer_user_question(question: str, context: dict) -> str:
     """
-    Answer a specific question about the user's loan result in plain, helpful language.
+    Answer a user's question about their loan result.
+    HF API first, then a smart rule-based system that gives real answers.
     """
     try:
         result = context.get("result", "Unknown")
         score = context.get("score", "N/A")
         features = context.get("features", [])
-        feature_text = ", ".join(
-            [f"{f['feature'].replace('_', ' ')} (impact: {f['impact']:+.3f})" for f in features[:3]]
-        ) if features else "not available"
-
+        feature_list = ", ".join(
+            [f["feature"].replace("_", " ") for f in features[:3]]
+        ) if features else "credit history, income, loan amount"
         decision = "approved" if result == "Approved" else "rejected"
 
         prompt = (
-            f"You are a helpful financial assistant. A user's loan application was {decision}. "
-            f"Their credit score is {score}/900. Key factors were: {feature_text}. "
-            f"The user asks: \"{question}\" "
-            f"Answer in 2–3 clear, friendly sentences. Be specific and practical."
+            f"Loan was {decision}. Credit score: {score}/900. "
+            f"Key factors: {feature_list}. "
+            f"Question: {question} "
+            f"Answer in 2 sentences."
         )
 
         answer = query_hf_api(prompt)
         if answer and len(answer.strip()) > 20:
             return answer.strip()
-        return _rule_based_answer(question, result, score)
+
+        # Smart fallback — actually answers the question properly
+        return _smart_qa(question, result, score, features)
 
     except Exception as e:
         logger.error(f"answer_user_question failed: {e}")
-        return _rule_based_answer(question, context.get("result", "Unknown"), context.get("score", 0))
+        return _smart_qa(question, context.get("result", "Unknown"),
+                         context.get("score", 0), context.get("features", []))
 
 
-def _fallback_suggestions(result: str, score: int, features: list) -> str:
-    """Rule-based suggestions when the AI API is unavailable."""
+def _smart_suggestions(result: str, score: int, features: list) -> str:
+    """
+    Rich rule-based suggestions that give genuinely useful advice
+    based on the actual prediction result and top features.
+    """
+    top_features = [f["feature"].lower() for f in features[:3]] if features else []
+
     if result == "Approved":
+        tip3 = "Consider setting up automatic payments to protect your strong repayment record going forward."
+        if any("income" in f for f in top_features):
+            tip3 = "Your income was a strong positive factor — maintaining or growing it will keep you in good standing."
         return (
-            f"1. Keep up your strong credit habits — your score of {score} is working in your favour.\n"
-            f"2. Avoid taking on new debt before your loan is finalised to maintain your profile.\n"
-            f"3. Consider making extra repayments over time to build even stronger creditworthiness."
+            f"1. Great news — your credit score of {score} helped secure this approval. "
+            f"Keep paying bills on time to maintain this advantage.\n"
+            f"2. Avoid opening new credit cards or loans in the next 3 months, "
+            f"as multiple credit inquiries can lower your score.\n"
+            f"3. {tip3}"
         )
-    return (
-        f"1. Focus on building your credit history — even small, consistent payments make a real difference.\n"
-        f"2. Try to reduce existing debts before reapplying, as a lower debt-to-income ratio improves your chances.\n"
-        f"3. Consider applying for a smaller loan amount or adding a co-applicant with a strong credit profile."
-    )
+
+    # Rejected — give targeted advice based on what actually hurt them
+    tips = []
+    if any("credit" in f for f in top_features):
+        tips.append(
+            "Your credit history was the biggest factor — start building it by paying every bill on time, "
+            "even small ones. Consistency over 6–12 months makes a real difference."
+        )
+    if any("income" in f or "applicant" in f for f in top_features):
+        tips.append(
+            "Your income relative to the loan amount was flagged. Consider applying for a smaller loan, "
+            "adding a co-applicant with steady income, or waiting until your income increases."
+        )
+    if any("loan" in f for f in top_features):
+        tips.append(
+            "The loan amount requested was identified as a risk factor. "
+            "A smaller loan amount or a longer repayment term would reduce the lender's perceived risk."
+        )
+
+    # Fill up to 3 tips with general advice if needed
+    general = [
+        "Clear any outstanding debts where possible — a lower debt-to-income ratio significantly improves approval odds.",
+        "Check your credit report for any errors or outdated negative entries and dispute them if needed.",
+        "Wait at least 6 months before reapplying, using that time to strengthen your financial profile.",
+    ]
+    for g in general:
+        if len(tips) >= 3:
+            break
+        tips.append(g)
+
+    numbered = "\n".join([f"{i+1}. {t}" for i, t in enumerate(tips[:3])])
+    return f"Your score of {score} needs improvement. Here's what to focus on:\n{numbered}"
 
 
-def _rule_based_answer(question: str, result: str, score) -> str:
-    """Simple rule-based Q&A fallback."""
+def _smart_qa(question: str, result: str, score, features: list) -> str:
+    """
+    Smart rule-based Q&A that actually answers common questions properly.
+    Matches question intent and returns a relevant, specific answer.
+    """
     q = question.lower()
     decision = "approved" if result == "Approved" else "rejected"
-    if "why" in q or "reason" in q:
+    top_features = [f["feature"].replace("_", " ").lower() for f in features[:3]] if features else []
+    top_name = top_features[0] if top_features else "credit history"
+
+    # Why approved/rejected?
+    if any(w in q for w in ["why", "reason", "because", "what caused", "what made"]):
+        if result == "Approved":
+            return (
+                f"Your loan was approved mainly because of your strong {top_name}, "
+                f"which pushed your credit score to {score}/900. "
+                f"Lenders saw you as a low-risk borrower based on your financial profile."
+            )
         return (
-            f"Your loan was {decision} primarily based on your credit history, income level, "
-            f"and the loan amount requested. A credit score of {score} was a key factor in this decision."
+            f"Your loan was rejected largely due to concerns around your {top_name}. "
+            f"With a score of {score}/900, the model identified your application as higher risk. "
+            f"Improving your {top_name} over the next few months would meaningfully increase your chances."
         )
-    if "improve" in q or "better" in q or "score" in q:
+
+    # How to improve score?
+    if any(w in q for w in ["improve", "increase", "boost", "better", "raise", "higher"]):
         return (
-            f"To improve your chances, focus on paying bills on time, reducing existing debts, "
-            f"and avoiding new credit applications in the short term."
+            f"To raise your credit score from {score}, focus on three things: "
+            f"pay every bill on time without exception, reduce any existing debt balances, "
+            f"and avoid applying for new credit in the short term. "
+            f"Consistent positive behaviour over 6–12 months typically leads to noticeable improvement."
         )
+
+    # What is the most important factor?
+    if any(w in q for w in ["important", "factor", "key", "main", "biggest", "top"]):
+        second = top_features[1] if len(top_features) > 1 else "income level"
+        return (
+            f"The most influential factor in your result was your {top_name}, "
+            f"followed closely by your {second}. "
+            f"These two factors carried the most weight in the model's decision."
+        )
+
+    # What is credit score?
+    if any(w in q for w in ["credit score", "what is", "mean", "range", "300", "900"]):
+        tier = "good" if score >= 700 else "fair" if score >= 550 else "needs improvement"
+        return (
+            f"Your credit score is {score} out of 900. That's considered {tier}. "
+            f"Scores above 700 typically qualify for the best loan terms, "
+            f"while scores below 550 usually lead to rejection unless other factors are very strong."
+        )
+
+    # What should I do next?
+    if any(w in q for w in ["next", "now", "do", "step", "action", "reapply"]):
+        if result == "Approved":
+            return (
+                f"Your loan was approved — the next step is to review the loan terms carefully "
+                f"and ensure the repayment schedule fits your monthly budget. "
+                f"Making every payment on time will also keep your score of {score} healthy."
+            )
+        return (
+            f"Start by working on your {top_name} over the next 3–6 months. "
+            f"Once your score improves past 650, consider reapplying — "
+            f"you'll likely see a much better outcome."
+        )
+
+    # Default — still give a real answer
     return (
-        f"Your loan was {decision} with a credit score of {score}. "
-        f"The main factors were your credit history, income, and loan amount. "
-        f"Feel free to ask something more specific about your result."
+        f"Your loan was {decision} with a credit score of {score}/900. "
+        f"The top factors influencing this were: {', '.join(top_features) if top_features else 'credit history, income, and loan amount'}. "
+        f"Feel free to ask something more specific — like why it was {decision}, "
+        f"how to improve your score, or what the most important factor was."
     )
 
 
