@@ -13,23 +13,23 @@ import {
   PaperAirplaneIcon,
   LightBulbIcon,
 } from '@heroicons/react/24/outline';
- 
+
 const API_URL = process.env.REACT_APP_API_URL || 'https://ai-credit-scoring-system.onrender.com';
- 
+
 const initialForm = {
   ApplicantIncome: '',
   LoanAmount: '',
   Credit_History: '1.0',
   Dependents: '0',
 };
- 
+
 const getRiskLevel = (approved, score) => {
   if (approved !== 1) return { level: 'High', color: 'text-red-600', bg: 'bg-red-50' };
   if (score >= 700) return { level: 'Low', color: 'text-green-600', bg: 'bg-green-50' };
   if (score >= 600) return { level: 'Medium', color: 'text-yellow-600', bg: 'bg-yellow-50' };
   return { level: 'High', color: 'text-red-600', bg: 'bg-red-50' };
 };
- 
+
 // ── Brand Mark ────────────────────────────────────────────────────────────────
 function BrandMark({ compact = false }) {
   return (
@@ -53,7 +53,7 @@ function BrandMark({ compact = false }) {
     </div>
   );
 }
- 
+
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, tone = 'neutral', sub }) {
   const toneStyles = {
@@ -80,7 +80,7 @@ function StatCard({ icon: Icon, label, value, tone = 'neutral', sub }) {
     </div>
   );
 }
- 
+
 // ── Feature Row ───────────────────────────────────────────────────────────────
 function FeatureRow({ feature, impact }) {
   const magnitude = Math.min(1, Math.abs(Number(impact)) / 0.5);
@@ -109,18 +109,18 @@ function FeatureRow({ feature, impact }) {
     </div>
   );
 }
- 
+
 // ── AI Suggestions Card ───────────────────────────────────────────────────────
 function AISuggestionsCard({ suggestions }) {
   if (!suggestions) return null;
   const lines = suggestions.split(/(?=\d\.\s)/).map(s => s.trim()).filter(Boolean);
- 
+
   return (
     <div className="rounded-2xl sm:rounded-3xl border border-teal-100 bg-gradient-to-br from-teal-50/60 to-white p-4 sm:p-6 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">AI Financial Advice</h2>
-          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Personalised suggestions based on your application.</p>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Here's what the AI recommends based on your specific profile and result.</p>
         </div>
         <div className="shrink-0 rounded-lg sm:rounded-xl bg-teal-100 p-1.5 sm:p-2 ring-1 ring-teal-200">
           <LightBulbIcon className="h-4 w-4 sm:h-5 sm:w-5 text-teal-700" />
@@ -143,20 +143,20 @@ function AISuggestionsCard({ suggestions }) {
     </div>
   );
 }
- 
+
 // ── AI Q&A Card ───────────────────────────────────────────────────────────────
 function AIQACard({ token, apiUrl }) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [qaLoading, setQaLoading] = useState(false);
   const [qaError, setQaError] = useState('');
- 
+
   const suggestedQuestions = [
     'Why was my loan approved or rejected?',
     'How can I improve my credit score?',
     'What is the most important factor?',
   ];
- 
+
   const askQuestion = async (q) => {
     const text = (q || question).trim();
     if (!text) return;
@@ -181,19 +181,19 @@ function AIQACard({ token, apiUrl }) {
       setQaLoading(false);
     }
   };
- 
+
   return (
     <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">Ask AI Assistant</h2>
-          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Ask anything about your loan decision.</p>
+          <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Have a question about your result? Ask away — the AI assistant is here to help.</p>
         </div>
         <div className="shrink-0 rounded-lg sm:rounded-xl bg-slate-100 p-1.5 sm:p-2 ring-1 ring-slate-200">
           <ChatBubbleLeftRightIcon className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
         </div>
       </div>
- 
+
       {/* Suggested questions — wraps nicely on mobile */}
       <div className="mt-3 sm:mt-4 flex flex-wrap gap-1.5 sm:gap-2">
         {suggestedQuestions.map((q, idx) => (
@@ -206,7 +206,7 @@ function AIQACard({ token, apiUrl }) {
           </button>
         ))}
       </div>
- 
+
       {/* Input row */}
       <div className="mt-3 sm:mt-4 flex gap-2">
         <input
@@ -227,14 +227,14 @@ function AIQACard({ token, apiUrl }) {
             : <PaperAirplaneIcon className="h-4 w-4" />}
         </button>
       </div>
- 
+
       {qaError && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs sm:text-sm text-rose-800">
           <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
           {qaError}
         </div>
       )}
- 
+
       {answer && (
         <div className="mt-3 rounded-xl sm:rounded-2xl border border-emerald-100 bg-emerald-50 p-3 sm:p-4">
           <div className="flex items-center gap-1.5 mb-1.5">
@@ -247,7 +247,7 @@ function AIQACard({ token, apiUrl }) {
     </div>
   );
 }
- 
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -260,17 +260,17 @@ function App() {
   const [error, setError] = useState('');
   const [authError, setAuthError] = useState('');
   const [result, setResult] = useState(null);
- 
+
   const handleAuthChange = (e) => {
     const { name, value } = e.target;
     setAuthForm(prev => ({ ...prev, [name]: value }));
   };
- 
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
- 
+
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -280,9 +280,9 @@ function App() {
       const payload = authMode === 'login'
         ? { username: authForm.username, password: authForm.password }
         : { username: authForm.username, password: authForm.password, email: authForm.email };
- 
+
       try { await fetch(`${API_URL}/`, { method: 'GET' }); } catch (_) {}
- 
+
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -304,14 +304,14 @@ function App() {
       setAuthLoading(false);
     }
   };
- 
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     setToken('');
     setResult(null);
     setFormData(initialForm);
   };
- 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -350,17 +350,17 @@ function App() {
       setLoading(false);
     }
   };
- 
+
   // shared input classes
   const inputCls = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-100 transition";
   const selectCls = inputCls;
- 
+
   // ── Login / Register ────────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-100 to-teal-50 flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-4xl overflow-hidden rounded-2xl sm:rounded-3xl shadow-2xl shadow-slate-200/80 border border-slate-200/60 grid grid-cols-1 lg:grid-cols-2">
- 
+
           {/* Form side */}
           <div className="bg-white p-6 sm:p-8 lg:p-10 flex flex-col justify-center">
             <BrandMark />
@@ -369,10 +369,10 @@ function App() {
             </h1>
             <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-slate-500">
               {authMode === 'login'
-                ? 'Sign in to generate a credit score and see the key factors behind the decision.'
-                : 'Create your account to start AI-powered loan analysis.'}
+                ? 'Sign in to check your loan eligibility, get a credit score, and receive personalised financial advice — all in seconds.'
+                : 'Create your account and get instant AI-powered insights on your loan application.'}
             </p>
- 
+
             <form onSubmit={handleAuth} className="mt-6 sm:mt-8 grid gap-3 sm:gap-4">
               <div className="grid gap-1.5">
                 <label className="text-xs font-semibold text-slate-600">Username</label>
@@ -381,14 +381,14 @@ function App() {
                   <input name="username" type="text" required value={authForm.username} onChange={handleAuthChange} placeholder="admin" className={`${inputCls} pl-9`} />
                 </div>
               </div>
- 
+
               {authMode === 'register' && (
                 <div className="grid gap-1.5">
                   <label className="text-xs font-semibold text-slate-600">Email</label>
                   <input name="email" type="email" required value={authForm.email} onChange={handleAuthChange} placeholder="you@example.com" className={inputCls} />
                 </div>
               )}
- 
+
               <div className="grid gap-1.5">
                 <label className="text-xs font-semibold text-slate-600">Password</label>
                 <div className="relative">
@@ -396,14 +396,14 @@ function App() {
                   <input name="password" type="password" required value={authForm.password} onChange={handleAuthChange} placeholder="••••••••" className={`${inputCls} pl-9`} />
                 </div>
               </div>
- 
+
               {authError && (
                 <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs sm:text-sm text-rose-800">
                   <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
                   {authError}
                 </div>
               )}
- 
+
               <button
                 type="submit"
                 disabled={authLoading}
@@ -419,14 +419,14 @@ function App() {
                 )}
               </button>
             </form>
- 
+
             <p className="mt-5 sm:mt-6 text-center text-xs sm:text-sm text-slate-500">
               {authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
               <button onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }} className="font-semibold text-teal-700 hover:underline">
                 {authMode === 'login' ? 'Sign up' : 'Sign in'}
               </button>
             </p>
- 
+
             {authMode === 'login' && (
               <div className="mt-5 sm:mt-6 rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
                 <div className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 sm:mb-3">Demo credentials</div>
@@ -445,23 +445,23 @@ function App() {
               </div>
             )}
           </div>
- 
+
           {/* Preview side — hidden on mobile, visible on lg */}
           <div className="hidden lg:flex flex-col justify-center bg-gradient-to-br from-teal-700 to-teal-900 p-10 text-white">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/20 w-fit mb-6">
-              <SparklesIcon className="h-3.5 w-3.5" /> Smart scoring
+              <SparklesIcon className="h-3.5 w-3.5" /> AI-powered
             </div>
             <h2 className="text-2xl font-extrabold tracking-tight leading-snug">
-              Professional, modern<br />and consistent branding
+              Know your chances before you apply
             </h2>
             <p className="mt-3 text-sm text-white/60 leading-relaxed">
-              Clean spacing, refined typography, and an accessible color system that matches your reference (teal + lime).
+              Get an instant loan decision powered by machine learning — with a credit score, risk rating, and plain-English advice tailored to your profile.
             </p>
             <div className="mt-8 grid gap-3">
               {[
                 { label: 'Approval outcome', value: 'Approved / Rejected', sub: 'Clear status at a glance' },
                 { label: 'Risk tier', value: 'Low / Med / High', sub: 'Confidence score 0–100%' },
-                { label: 'AI Suggestions', value: 'Personalised advice', sub: 'Powered by Hugging Face Flan-T5' },
+                { label: 'AI Financial Advice', value: 'Tailored suggestions', sub: 'What to do next — in plain language' },
               ].map((item, i) => (
                 <div key={i} className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
                   <div className="text-xs text-white/50">{item.label}</div>
@@ -475,11 +475,11 @@ function App() {
       </div>
     );
   }
- 
+
   // ── Dashboard ───────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-teal-50/30">
- 
+
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
@@ -493,24 +493,24 @@ function App() {
           </button>
         </div>
       </header>
- 
+
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10">
         {/* On mobile: single column stacked. On lg: 2-col side-by-side */}
         <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:gap-8 lg:grid-cols-5">
- 
+
           {/* ── Form panel ── */}
           <section className="lg:col-span-2">
             <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">Loan application</h2>
-                  <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Enter details for instant AI-powered analysis.</p>
+                  <p className="mt-0.5 text-xs sm:text-sm text-slate-500">A few details is all we need. We'll handle the rest.</p>
                 </div>
                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-lime-100 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-lime-800 ring-1 ring-lime-200">
-                  <SparklesIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> Pro UI
+                  <SparklesIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> AI-powered
                 </span>
               </div>
- 
+
               <form onSubmit={handleSubmit} className="mt-4 sm:mt-6 grid gap-3 sm:gap-4">
                 {/* 2-col on sm+, 1-col on mobile */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -539,14 +539,14 @@ function App() {
                     </select>
                   </div>
                 </div>
- 
+
                 {error && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs sm:text-sm text-rose-800">
                     <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
                     {error}
                   </div>
                 )}
- 
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -564,7 +564,7 @@ function App() {
                     </>
                   )}
                 </button>
- 
+
                 {/* What you'll get — hidden on mobile to save space */}
                 <div className="hidden sm:block rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">What you'll get</div>
@@ -586,7 +586,7 @@ function App() {
               </form>
             </div>
           </section>
- 
+
           {/* ── Results panel ── */}
           <section className="lg:col-span-3">
             {!result ? (
@@ -594,20 +594,20 @@ function App() {
                 <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-teal-50 ring-1 ring-teal-100">
                   <ChartBarIcon className="h-6 w-6 sm:h-7 sm:w-7 text-teal-600" />
                 </div>
-                <h3 className="mt-4 text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">Results will appear here</h3>
+                <h3 className="mt-4 text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">Your results will show up here</h3>
                 <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-xs">
-                  Submit the form to generate a prediction, credit score, AI suggestions, and top factors.
+                  Fill in your details and hit "Get prediction" — we'll show your approval chances, credit score, and personalised AI advice.
                 </p>
               </div>
             ) : (
               <div className="grid gap-4 sm:gap-6">
- 
+
                 {/* Decision summary */}
                 <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">Decision summary</h2>
-                      <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Instant prediction based on your inputs.</p>
+                      <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Here's what our model found based on what you submitted.</p>
                     </div>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 shrink-0 ${result.approval === 'Approved' ? 'bg-emerald-100 text-emerald-800 ring-emerald-200' : 'bg-rose-100 text-rose-800 ring-rose-200'}`}>
                       {result.approval === 'Approved'
@@ -624,13 +624,13 @@ function App() {
                     <StatCard icon={result.approval === 'Approved' ? CheckCircleIcon : XCircleIcon} label="Loan status" value={result.approval} tone={result.approval === 'Approved' ? 'good' : 'bad'} sub="Final outcome" />
                   </div>
                 </div>
- 
+
                 {/* Key factors */}
                 <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">Key factors</h2>
-                      <p className="mt-0.5 text-xs sm:text-sm text-slate-500">Most influential features for this decision.</p>
+                      <p className="mt-0.5 text-xs sm:text-sm text-slate-500">These are the factors that had the biggest impact on your outcome.</p>
                     </div>
                     <span className="shrink-0 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
                       Top {result.topFeatures?.length || 0}
@@ -642,13 +642,13 @@ function App() {
                     ))}
                   </div>
                 </div>
- 
+
                 {/* AI Suggestions */}
                 {result.aiSuggestions && <AISuggestionsCard suggestions={result.aiSuggestions} />}
- 
+
                 {/* AI Q&A */}
                 <AIQACard token={token} apiUrl={API_URL} />
- 
+
               </div>
             )}
           </section>
@@ -657,5 +657,5 @@ function App() {
     </div>
   );
 }
- 
+
 export default App;

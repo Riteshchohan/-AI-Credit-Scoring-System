@@ -1,7 +1,6 @@
 """
-FastAPI Backend for Loan Approval Prediction System
-With FREE AI Financial Assistant using Hugging Face Inference API
-(No local model loading - runs on HF servers, zero performance impact)
+FastAPI Backend — AI Credit Scoring & Loan Approval System
+Lightweight backend using Hugging Face Inference API for AI suggestions.
 """
 
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -19,17 +18,11 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from loan_approval_model import (
-    load_data,
-    preprocess_data,
-    train_model,
-    predict_with_credit_score,
-    explain_prediction
+    load_data, preprocess_data, train_model,
+    predict_with_credit_score, explain_prediction
 )
 
-# ============================================================================
-# LOGGING
-# ============================================================================
-
+# ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -37,65 +30,91 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# SECURITY CONFIGURATION
-# ============================================================================
-
+# ── Config ────────────────────────────────────────────────────────────────────
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001")
+
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+)
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
-# Hugging Face Inference API (no local model download needed)
+# Hugging Face — using mistralai/Mistral-7B-Instruct via serverless Inference API
+# flan-t5-base was returning empty/broken results; Mistral gives proper natural language
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
-HF_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
+HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
+# Fallback model if Mistral is busy/unavailable
+HF_FALLBACK_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
-# ============================================================================
-# GLOBAL VARIABLES
-# ============================================================================
-
+# ── Globals ───────────────────────────────────────────────────────────────────
 MODEL = None
 PREPROCESSOR = None
 X_TRAIN = None
 FEATURE_NAMES = None
 LATEST_PREDICTION_CONTEXT = {"result": None, "score": None, "features": []}
 
-# ============================================================================
-# AI ASSISTANT - Hugging Face Inference API (lightweight, no model download)
-# ============================================================================
+# ── AI Assistant ──────────────────────────────────────────────────────────────
 
-def query_hf_api(prompt: str) -> str:
+def query_hf_api(prompt: str, url: str = None) -> str:
     """
-    Call Hugging Face Inference API.
-    No model downloaded - runs on HF servers.
-    Fast, lightweight, free with HF account.
+    Call the Hugging Face Inference API with a chat-style prompt.
+    Uses Mistral-7B-Instruct which returns natural, fluent text.
+    Falls back to zephyr-7b-beta if Mistral is loading.
     """
-    try:
-        if not HF_API_TOKEN:
-            logger.warning("HF_API_TOKEN not set, using fallback suggestions.")
-            return None
-
-        headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-        payload = {
-            "inputs": prompt,
-            "parameters": {"max_new_tokens": 150, "temperature": 0.7}
-        }
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=15)
-
-        if response.status_code == 200:
-            result = response.json()
-            if isinstance(result, list) and len(result) > 0:
-                return result[0].get("generated_text", "").strip()
-        else:
-            logger.warning(f"HF API returned status {response.status_code}")
+    if not HF_API_TOKEN:
+        logger.warning("HF_API_TOKEN not set — using rule-based fallback.")
         return None
 
+    target_url = url or HF_API_URL
+    headers = {
+        "Authorization": f"Bearer {HF_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    # Mistral instruct format uses [INST] tags
+    formatted = f"<s>[INST] {prompt} [/INST]"
+    payload = {
+        "inputs": formatted,
+        "parameters": {
+            "max_new_tokens": 180,
+            "temperature": 0.6,
+            "top_p": 0.9,
+            "do_sample": True,
+            "return_full_text": False   # only return the generated part, not the prompt
+        }
+    }
+
+    try:
+        response = requests.post(target_url, headers=headers, json=payload, timeout=20)
+
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, list) and data:
+                text = data[0].get("generated_text", "").strip()
+                if text:
+                    return text
+            logger.warning(f"HF API returned empty text from {target_url}")
+            return None
+
+        elif response.status_code == 503:
+            # Model is loading — try fallback once
+            if url is None:
+                logger.warning("Mistral loading, trying Zephyr fallback...")
+                return query_hf_api(prompt, url=HF_FALLBACK_URL)
+            logger.warning("Both models loading, using rule-based fallback.")
+            return None
+
+        else:
+            logger.warning(f"HF API status {response.status_code}: {response.text[:200]}")
+            return None
+
     except requests.Timeout:
-        logger.warning("HF API timed out, using fallback.")
+        logger.warning("HF API timed out.")
         return None
     except Exception as e:
         logger.error(f"HF API call failed: {e}")
@@ -104,23 +123,28 @@ def query_hf_api(prompt: str) -> str:
 
 def generate_suggestions(result: str, score: int, features: list) -> str:
     """
-    Generate AI financial suggestions using HF Inference API.
-    Falls back to rule-based suggestions if API unavailable.
+    Generate personalised financial advice after a loan decision.
+    Uses Mistral-7B via HF Inference API for natural, helpful responses.
     """
     try:
         feature_text = ", ".join(
-            [f"{f['feature']} (impact: {f['impact']:.3f})" for f in features[:3]]
-        ) if features else "credit history, income, loan amount"
+            [f"{f['feature'].replace('_', ' ')} (impact: {f['impact']:+.3f})" for f in features[:3]]
+        ) if features else "credit history, income level, and loan amount"
+
+        decision = "approved" if result == "Approved" else "rejected"
 
         prompt = (
-            f"You are a fintech financial advisor. "
-            f"A loan application was {result} with credit score {score}. "
-            f"Top factors: {feature_text}. "
-            f"Give 3 short actionable suggestions to improve loan approval chances."
+            f"You are a friendly and knowledgeable financial advisor helping a loan applicant understand their result. "
+            f"Their loan was {decision}. Their credit score is {score} out of 900. "
+            f"The three most influential factors were: {feature_text}. "
+            f"Please give exactly 3 clear, actionable suggestions to help them improve their loan approval chances. "
+            f"Write in a warm, encouraging tone. Number each suggestion. Keep it concise — one sentence per suggestion."
         )
 
         answer = query_hf_api(prompt)
-        return answer if answer else _fallback_suggestions(result, score, features)
+        if answer and len(answer.strip()) > 20:
+            return answer.strip()
+        return _fallback_suggestions(result, score, features)
 
     except Exception as e:
         logger.error(f"generate_suggestions failed: {e}")
@@ -129,71 +153,85 @@ def generate_suggestions(result: str, score: int, features: list) -> str:
 
 def answer_user_question(question: str, context: dict) -> str:
     """
-    Answer user questions about their loan using HF Inference API.
+    Answer a specific question about the user's loan result in plain, helpful language.
     """
     try:
         result = context.get("result", "Unknown")
-        score = context.get("score", "Unknown")
+        score = context.get("score", "N/A")
         features = context.get("features", [])
         feature_text = ", ".join(
-            [f"{f['feature']} (impact: {f['impact']:.3f})" for f in features[:3]]
+            [f"{f['feature'].replace('_', ' ')} (impact: {f['impact']:+.3f})" for f in features[:3]]
         ) if features else "not available"
 
+        decision = "approved" if result == "Approved" else "rejected"
+
         prompt = (
-            f"You are a helpful fintech AI assistant. "
-            f"Context: Loan was {result}, credit score is {score}, "
-            f"top factors are {feature_text}. "
-            f"Question: {question} "
-            f"Answer clearly in 2-3 sentences."
+            f"You are a helpful financial assistant. A user's loan application was {decision}. "
+            f"Their credit score is {score}/900. Key factors were: {feature_text}. "
+            f"The user asks: \"{question}\" "
+            f"Answer in 2–3 clear, friendly sentences. Be specific and practical."
         )
 
         answer = query_hf_api(prompt)
-        return answer if answer else "I could not process your question at this time. Please try again."
+        if answer and len(answer.strip()) > 20:
+            return answer.strip()
+        return _rule_based_answer(question, result, score)
 
     except Exception as e:
         logger.error(f"answer_user_question failed: {e}")
-        return "I could not process your question at this time. Please try again."
+        return _rule_based_answer(question, context.get("result", "Unknown"), context.get("score", 0))
 
 
 def _fallback_suggestions(result: str, score: int, features: list) -> str:
-    """Rule-based fallback when AI API is unavailable."""
+    """Rule-based suggestions when the AI API is unavailable."""
     if result == "Approved":
         return (
-            f"Your loan was approved with a credit score of {score}. "
-            "To maintain your standing: "
-            "1. Keep making timely payments on all loans. "
-            "2. Avoid taking on excessive new debt. "
-            "3. Maintain a stable income and employment record."
+            f"1. Keep up your strong credit habits — your score of {score} is working in your favour.\n"
+            f"2. Avoid taking on new debt before your loan is finalised to maintain your profile.\n"
+            f"3. Consider making extra repayments over time to build even stronger creditworthiness."
         )
     return (
-        f"Your loan was rejected with a credit score of {score}. "
-        "To improve your chances: "
-        "1. Pay all bills on time to build a strong credit history. "
-        "2. Reduce existing debt to improve your debt-to-income ratio. "
-        "3. Consider applying for a smaller loan amount or adding a co-applicant."
+        f"1. Focus on building your credit history — even small, consistent payments make a real difference.\n"
+        f"2. Try to reduce existing debts before reapplying, as a lower debt-to-income ratio improves your chances.\n"
+        f"3. Consider applying for a smaller loan amount or adding a co-applicant with a strong credit profile."
     )
 
 
-# ============================================================================
-# LIFESPAN EVENT
-# ============================================================================
+def _rule_based_answer(question: str, result: str, score) -> str:
+    """Simple rule-based Q&A fallback."""
+    q = question.lower()
+    decision = "approved" if result == "Approved" else "rejected"
+    if "why" in q or "reason" in q:
+        return (
+            f"Your loan was {decision} primarily based on your credit history, income level, "
+            f"and the loan amount requested. A credit score of {score} was a key factor in this decision."
+        )
+    if "improve" in q or "better" in q or "score" in q:
+        return (
+            f"To improve your chances, focus on paying bills on time, reducing existing debts, "
+            f"and avoiding new credit applications in the short term."
+        )
+    return (
+        f"Your loan was {decision} with a credit score of {score}. "
+        f"The main factors were your credit history, income, and loan amount. "
+        f"Feel free to ask something more specific about your result."
+    )
 
+
+# ── Lifespan ──────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model_and_data()
-    logger.info("ML Model loaded successfully")
+    logger.info("ML model loaded successfully")
     yield
     logger.info("Shutting down...")
 
 
-# ============================================================================
-# FASTAPI APP
-# ============================================================================
-
+# ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Loan Approval Prediction API",
-    description="ML-powered API with AI financial assistant",
-    version="3.0.0",
+    title="AI Credit Scoring API",
+    description="ML-powered loan approval prediction with AI financial assistant",
+    version="3.1.0",
     lifespan=lifespan
 )
 
@@ -205,10 +243,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============================================================================
-# SCHEMAS
-# ============================================================================
-
+# ── Schemas ───────────────────────────────────────────────────────────────────
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: str = Field(..., pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
@@ -268,10 +303,7 @@ class UserQuestionResponse(BaseModel):
     answer: str
     context_available: bool
 
-# ============================================================================
-# AUTH FUNCTIONS
-# ============================================================================
-
+# ── Auth ──────────────────────────────────────────────────────────────────────
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
@@ -280,8 +312,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 def authenticate_user(username: str, password: str = None, token_validation: bool = False):
     users_db = {
-        "admin": {"username": "admin", "email": "admin@example.com", "password": os.getenv("ADMIN_PASSWORD", "admin123"), "disabled": False},
-        "user":  {"username": "user",  "email": "user@example.com",  "password": os.getenv("USER_PASSWORD",  "user123"),  "disabled": False}
+        "admin": {"username": "admin", "email": "admin@example.com",
+                  "password": os.getenv("ADMIN_PASSWORD", "admin123"), "disabled": False},
+        "user":  {"username": "user",  "email": "user@example.com",
+                  "password": os.getenv("USER_PASSWORD",  "user123"),  "disabled": False},
     }
     user = users_db.get(username)
     if not user:
@@ -293,7 +327,11 @@ def authenticate_user(username: str, password: str = None, token_validation: boo
     return user
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    exc = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
+    exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"}
+    )
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
@@ -306,10 +344,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise exc
     return user
 
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
+# ── Utilities ─────────────────────────────────────────────────────────────────
 def _get_transformed_feature_names(preprocessor) -> list:
     if preprocessor is None:
         return None
@@ -344,47 +379,38 @@ def _get_transformed_feature_names(preprocessor) -> list:
     except Exception:
         return None
 
-def _prettify_feature_name(raw: str) -> str:
+def _prettify(raw: str) -> str:
     if raw is None:
         return raw
     return str(raw).replace("num__", "").replace("cat__", "").replace("onehot__", "")
 
 def load_model_and_data():
     global MODEL, PREPROCESSOR, X_TRAIN, FEATURE_NAMES
-    model_path, preprocessor_path, x_train_path = "loan_model.pkl", "loan_preprocessor.pkl", "loan_x_train.pkl"
-    if os.path.exists(model_path) and os.path.exists(preprocessor_path):
+    mp, pp, xp = "loan_model.pkl", "loan_preprocessor.pkl", "loan_x_train.pkl"
+    if os.path.exists(mp) and os.path.exists(pp):
         print("Loading saved model...")
-        with open(model_path, "rb") as f:
-            MODEL = pickle.load(f)
-        with open(preprocessor_path, "rb") as f:
-            PREPROCESSOR = pickle.load(f)
-        raw_names = _get_transformed_feature_names(PREPROCESSOR)
-        FEATURE_NAMES = [_prettify_feature_name(n) for n in raw_names] if raw_names else None
-        if os.path.exists(x_train_path):
-            with open(x_train_path, "rb") as f:
-                X_TRAIN = pickle.load(f)
+        with open(mp, "rb") as f: MODEL = pickle.load(f)
+        with open(pp, "rb") as f: PREPROCESSOR = pickle.load(f)
+        raw = _get_transformed_feature_names(PREPROCESSOR)
+        FEATURE_NAMES = [_prettify(n) for n in raw] if raw else None
+        if os.path.exists(xp):
+            with open(xp, "rb") as f: X_TRAIN = pickle.load(f)
         else:
             df = load_data("loan_data.csv")
             X_TRAIN, _, _ = preprocess_data(df)
-            if hasattr(X_TRAIN, 'toarray'):
-                X_TRAIN = X_TRAIN.toarray()
+            if hasattr(X_TRAIN, 'toarray'): X_TRAIN = X_TRAIN.toarray()
     else:
         print("Training new model...")
         df = load_data("loan_data.csv")
-        if df is None:
-            raise Exception("Failed to load loan_data.csv")
+        if df is None: raise Exception("Failed to load loan_data.csv")
         X_TRAIN, y_train, PREPROCESSOR = preprocess_data(df)
-        raw_names = _get_transformed_feature_names(PREPROCESSOR)
-        FEATURE_NAMES = [_prettify_feature_name(n) for n in raw_names] if raw_names else None
-        if hasattr(X_TRAIN, 'toarray'):
-            X_TRAIN = X_TRAIN.toarray()
+        raw = _get_transformed_feature_names(PREPROCESSOR)
+        FEATURE_NAMES = [_prettify(n) for n in raw] if raw else None
+        if hasattr(X_TRAIN, 'toarray'): X_TRAIN = X_TRAIN.toarray()
         MODEL = train_model(X_TRAIN, y_train)
-        with open(model_path, "wb") as f:
-            pickle.dump(MODEL, f)
-        with open(preprocessor_path, "wb") as f:
-            pickle.dump(PREPROCESSOR, f)
-        with open(x_train_path, "wb") as f:
-            pickle.dump(X_TRAIN, f)
+        with open(mp, "wb") as f: pickle.dump(MODEL, f)
+        with open(pp, "wb") as f: pickle.dump(PREPROCESSOR, f)
+        with open(xp, "wb") as f: pickle.dump(X_TRAIN, f)
         print("Model trained and saved!")
 
 def ensure_model_loaded():
@@ -392,14 +418,10 @@ def ensure_model_loaded():
     if MODEL is None or PREPROCESSOR is None:
         load_model_and_data()
 
-# ============================================================================
-# ENDPOINTS
-# ============================================================================
-
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 @app.post("/register", response_model=Token)
 async def register_user(user: UserCreate):
     try:
-        logger.info(f"Registration: {user.username}")
         token = create_access_token({"sub": user.username}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
         return {"access_token": token, "token_type": "bearer"}
     except Exception as e:
@@ -409,17 +431,18 @@ async def register_user(user: UserCreate):
 async def login_user(user: UserLogin):
     try:
         logger.info(f"Login attempt: {user.username}")
-        auth_user = authenticate_user(user.username, user.password)
-        if not auth_user:
+        auth = authenticate_user(user.username, user.password)
+        if not auth:
             logger.warning(f"Failed login: {user.username}")
-            raise HTTPException(status_code=401, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
-        token = create_access_token({"sub": auth_user["username"]}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+            raise HTTPException(status_code=401, detail="Incorrect username or password",
+                                headers={"WWW-Authenticate": "Bearer"})
+        token = create_access_token({"sub": auth["username"]}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
         logger.info(f"Successful login: {user.username}")
         return {"access_token": token, "token_type": "bearer"}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Login failed due to server error")
+        raise HTTPException(status_code=500, detail="Login failed due to a server error")
 
 @app.get("/", response_model=HealthResponse)
 async def health_check():
@@ -432,7 +455,7 @@ async def detailed_health():
         "model_loaded": MODEL is not None,
         "preprocessor_loaded": PREPROCESSOR is not None,
         "training_samples": X_TRAIN.shape[0] if X_TRAIN is not None else 0,
-        "ai_assistant": "HF Inference API" if HF_API_TOKEN else "Fallback (no token)"
+        "ai_assistant": "Mistral-7B via HF Inference API" if HF_API_TOKEN else "Rule-based fallback (no token set)"
     }
 
 @app.post("/predict", response_model=PredictionResponse)
@@ -443,29 +466,36 @@ async def predict_loan(request: LoanApplicationRequest, current_user: dict = Dep
 
         global FEATURE_NAMES, LATEST_PREDICTION_CONTEXT
         if FEATURE_NAMES is None:
-            raw_names = _get_transformed_feature_names(PREPROCESSOR)
-            FEATURE_NAMES = [_prettify_feature_name(n) for n in raw_names] if raw_names else None
+            raw = _get_transformed_feature_names(PREPROCESSOR)
+            FEATURE_NAMES = [_prettify(n) for n in raw] if raw else None
 
         input_df = pd.DataFrame([request.model_dump()])
         X_input = PREPROCESSOR.transform(input_df)
         result = predict_with_credit_score(MODEL, X_input)
-        explanation = explain_prediction(model=MODEL, X_input=X_input, X_background=X_TRAIN, feature_names=FEATURE_NAMES)
+        explanation = explain_prediction(
+            model=MODEL, X_input=X_input,
+            X_background=X_TRAIN, feature_names=FEATURE_NAMES
+        )
 
         approval_label = "Approved" if result['prediction'] == 1 else "Rejected"
         credit_score = result['credit_score']
         top_features = explanation['top_features']
 
-        LATEST_PREDICTION_CONTEXT = {"result": approval_label, "score": credit_score, "features": top_features}
+        LATEST_PREDICTION_CONTEXT = {
+            "result": approval_label, "score": credit_score, "features": top_features
+        }
 
-        ai_suggestions = generate_suggestions(result=approval_label, score=credit_score, features=top_features)
+        ai_suggestions = generate_suggestions(
+            result=approval_label, score=credit_score, features=top_features
+        )
 
-        logger.info(f"Prediction done for {current_user['username']}: {approval_label}")
+        logger.info(f"Prediction done for {current_user['username']}: {approval_label} (score {credit_score})")
         return {
             "loan_approved": result['prediction'],
             "approval_probability": result['probability'],
             "credit_score": credit_score,
             "top_features": top_features,
-            "ai_suggestions": ai_suggestions
+            "ai_suggestions": ai_suggestions,
         }
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
@@ -477,8 +507,15 @@ async def ask_question(request: UserQuestionRequest, current_user: dict = Depend
     try:
         logger.info(f"AI question from {current_user['username']}: {request.question}")
         if LATEST_PREDICTION_CONTEXT["result"] is None:
-            return {"answer": "Please make a loan prediction first, then I can answer your questions.", "context_available": False}
-        answer = answer_user_question(question=request.question, context=LATEST_PREDICTION_CONTEXT)
+            return {
+                "answer": "It looks like you haven't run a prediction yet. "
+                          "Submit your loan details first and then ask me anything about your result.",
+                "context_available": False
+            }
+        answer = answer_user_question(
+            question=request.question,
+            context=LATEST_PREDICTION_CONTEXT
+        )
         return {"answer": answer, "context_available": True}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Question failed: {e}")
